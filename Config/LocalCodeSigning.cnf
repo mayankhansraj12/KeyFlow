@@ -1,0 +1,15 @@
+[ req ]
+distinguished_name = subject
+x509_extensions = extensions
+prompt = no
+
+[ subject ]
+CN = KeyFlow Local Development
+O = KeyFlow Development
+
+[ extensions ]
+basicConstraints = critical,CA:false
+keyUsage = critical,digitalSignature
+extendedKeyUsage = critical,codeSigning
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer

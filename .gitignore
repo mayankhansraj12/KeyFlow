@@ -1,0 +1,16 @@
+.build/
+.swiftpm/
+dist/
+release/
+DerivedData/
+*.xcarchive
+*.dSYM/
+*.xcuserstate
+.DS_Store
+.local-signing/
+.env
+.env.*
+!.env.example
+*.p8
+*.cer
+*.p12

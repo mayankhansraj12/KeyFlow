@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Build, test, and package
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Validate sources and tests
+        run: ./Scripts/validate.sh
+
+      - name: Build ad-hoc CI application
+        env:
+          CODE_SIGN_IDENTITY: "-"
+        run: ./Scripts/build-app.sh
+
+      - name: Verify application bundle
+        run: ./Scripts/verify-app.sh
+
+      - name: Archive CI artifact
+        run: ditto -c -k --keepParent dist/KeyFlow.app KeyFlow-ci.zip
+
+      - name: Upload CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeyFlow-${{ github.sha }}
+          path: KeyFlow-ci.zip
+          if-no-files-found: error
+          retention-days: 7
