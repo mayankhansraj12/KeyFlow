@@ -14,19 +14,19 @@ struct WindowSwitcherLayoutMetrics {
         case .compact:
             maximumCardWidth = 190
             maximumCardHeight = 150
-            minimumPanelWidth = 260
+            minimumPanelWidth = 210
             outerPadding = 10
             spacing = 6
         case .balanced:
             maximumCardWidth = 240
             maximumCardHeight = 186
-            minimumPanelWidth = 300
+            minimumPanelWidth = 264
             outerPadding = 12
             spacing = 8
         case .large:
             maximumCardWidth = 290
             maximumCardHeight = 218
-            minimumPanelWidth = 360
+            minimumPanelWidth = 318
             outerPadding = 14
             spacing = 10
         }
@@ -275,7 +275,7 @@ struct WindowSwitcherView: View {
 
 private struct WindowSwitcherCardView: View, Equatable {
     private struct RenderIdentity: Equatable, Sendable {
-        let windowID: CGWindowID?
+        let windowID: CGWindowID
         let processID: pid_t
         let title: String
         let thumbnailID: ObjectIdentifier?

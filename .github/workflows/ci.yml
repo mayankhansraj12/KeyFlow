@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Show toolchain
         run: swift --version
@@ -29,10 +29,23 @@ jobs:
       - name: Validate sources and tests
         run: ./Scripts/validate.sh
 
+      - name: Run AddressSanitizer tests
+        run: swift test --sanitize=address
+
+      - name: Run ThreadSanitizer tests
+        run: swift test --sanitize=thread
+
+      - name: Enforce coverage floors
+        run: ./Scripts/coverage.sh
+
+      - name: Build universal release executable
+        run: ./Scripts/build-universal.sh release "$RUNNER_TEMP/KeyFlowApp-universal"
+
       - name: Build ad-hoc CI application
         env:
           CODE_SIGN_IDENTITY: "-"
-        run: ./Scripts/build-app.sh
+          KEYFLOW_EXECUTABLE: ${{ runner.temp }}/KeyFlowApp-universal
+        run: ./Scripts/build-app.sh release
 
       - name: Verify application bundle
         run: ./Scripts/verify-app.sh
@@ -41,7 +54,7 @@ jobs:
         run: ditto -c -k --keepParent dist/KeyFlow.app KeyFlow-ci.zip
 
       - name: Upload CI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: KeyFlow-${{ github.sha }}
           path: KeyFlow-ci.zip

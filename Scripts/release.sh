@@ -28,6 +28,10 @@ trap cleanup EXIT
     print -u2 "Set NOTARY_PROFILE to a notarytool keychain profile."
     exit 64
 }
+[[ -z "$(git -C "$ROOT" status --porcelain)" ]] || {
+    print -u2 "Release requires a clean working tree so the artifact matches a reviewable commit."
+    exit 1
+}
 security find-identity -v -p codesigning | grep -Fq "$IDENTITY" || {
     print -u2 "Developer ID identity was not found in the active keychains: $IDENTITY"
     exit 1

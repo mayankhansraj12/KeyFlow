@@ -10,18 +10,22 @@ Sources/
 │   ├── Platform/          direct macOS integration
 │   │   ├── Actions/
 │   │   ├── Audio/
-│   │   └── Input/
-│   └── Services/          permissions, login items, diagnostics
+│   │   ├── Input/
+│   │   ├── Screenshots/
+│   │   └── Windows/
+│   └── Services/          application presentation, permissions, login items, diagnostics
 ├── KeyFlowCore/           portable domain, validation, migration, repository
-└── KeyFlowMultitouchBridge/
-                           isolated undocumented touch ABI boundary
+├── KeyFlowMultitouchBridge/
+│                          isolated undocumented touch ABI boundary
+└── KeyFlowWindowServerBridge/
+                           isolated exact-window focus compatibility boundary
 
 Tests/
 ├── KeyFlowCoreTests/
 └── KeyFlowAppTests/
 ```
 
-`KeyFlowCore` must not import SwiftUI, AppKit, ApplicationServices, CoreGraphics, ServiceManagement, or the private multitouch bridge. `KeyFlowApp` may depend on Core and the bridge. The bridge must not know about mappings, actions, persistence, networking, or UI.
+`KeyFlowCore` must not import SwiftUI, AppKit, ApplicationServices, CoreGraphics, ServiceManagement, or either platform bridge. `KeyFlowApp` may depend on Core and the bridges. The bridges must not know about mappings, actions, persistence, networking, or UI.
 
 ## Runtime flow
 

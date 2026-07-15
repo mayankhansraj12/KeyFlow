@@ -84,10 +84,7 @@ final class WindowSwitcherController: WindowSwitching {
         var windows = arrangement.windows
         let cachedImages = thumbnails.cachedThumbnails(for: windows)
         for index in windows.indices {
-            guard
-                let windowID = windows[index].windowID,
-                let image = cachedImages[windowID]
-            else { continue }
+            guard let image = cachedImages[windows[index].windowID] else { continue }
             windows[index].thumbnail = image
         }
         isActive = true
@@ -106,11 +103,9 @@ final class WindowSwitcherController: WindowSwitching {
             windows: windows,
             selectedIndex: arrangement.initialIndex
         )
-        let captureTargets = captureOrder.filter { window in
-            guard let windowID = window.windowID else { return false }
-            return cachedImages[windowID] == nil
-        }
-        guard !captureTargets.isEmpty else { return }
+        // Cached thumbnails make presentation immediate; every launch still
+        // reconciles them with current ScreenCaptureKit content in the background.
+        let captureTargets = captureOrder
         thumbnailTask = Task { [weak self] in
             guard let self else { return }
             let images = await thumbnails.thumbnails(for: captureTargets) { [weak self] update in

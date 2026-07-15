@@ -1,6 +1,6 @@
 # KeyFlow
 
-KeyFlow is a native macOS keyboard-shortcut and trackpad-gesture manager. The current `0.1.6` build is a production-oriented foundation for the first working vertical slice from the [product and engineering plan](docs/PRODUCT_PLAN.md). See [implementation status](docs/IMPLEMENTATION_STATUS.md) for the exact completion matrix and limitations.
+KeyFlow is a native macOS keyboard-shortcut and trackpad-gesture manager. The current `0.1.7` build is a production-oriented foundation for the first working vertical slice from the [product and engineering plan](docs/PRODUCT_PLAN.md). See [implementation status](docs/IMPLEMENTATION_STATUS.md) for the exact completion matrix and limitations.
 
 ## What works now
 
@@ -8,7 +8,7 @@ KeyFlow is a native macOS keyboard-shortcut and trackpad-gesture manager. The cu
 - Optional suppression of the original keyboard shortcut.
 - Fixed, toggleable trackpad features for 4/5-finger volume sweeps plus 3/4/5-finger mute, media play/pause, full-screen screenshots, and interactive selection screenshots. Tap and physical-click triggers are distinct and exclusive.
 - An independently enabled four-finger window switcher with a five-column adaptive grid. A horizontal swipe launches it; baseline-relative two-axis movement then navigates rows, columns, and diagonals before release raises the selected window. A continuous 0.25×–2.5× speed multiplier controls travel sensitivity and animation response. Standard Apps shows normal Dock-app windows; All Open Apps also includes KeyFlow, running Dock apps without a resolvable window, and third-party accessory/menu-bar/background apps only while they expose a visible window. macOS shell surfaces such as Dock, Control Center, and volume HUD are excluded. Optional Screen Recording permission adds a bounded, demand-driven thumbnail cache. Capture runs only while the switcher is in use, publishes the selected preview first, and is serialized to prevent background CPU spikes.
-- Open URL, launch application, type-text, volume up/down, mute/unmute, media play/pause, and native screenshot actions. Screenshots preserve the live macOS destination, with an optional additional PNG copy in the default or KeyFlow-selected custom folder. Volume actions post system media keys so macOS shows its native HUD, with Core Audio fallback.
+- Keyboard shortcuts open a user-selected application. Fixed gesture features provide continuous volume adjustment, mute/unmute, media play/pause, native full-screen and selection screenshots, and interactive window switching. Screenshots preserve the live macOS destination, with an optional additional PNG copy in the default or KeyFlow-selected custom folder. Continuous volume changes use Core Audio and KeyFlow's reusable, customizable Sound Bar.
 - A native keyboard mapping editor plus fixed gesture feature menus with conflict-safe trigger selection.
 - Migratable JSON persistence in `~/Library/Application Support/KeyFlow/configuration.json`, with rolling backups and automatic corruption recovery.
 - Menu-bar pause/resume control.
@@ -70,6 +70,10 @@ NOTARY_PROFILE="KeyFlow Notarization" \
 
 Release credentials must be supplied through the keychain or protected CI secrets and must never be committed. Automatic updates remain a separate product milestone.
 
+## License
+
+KeyFlow is currently proprietary software. See [LICENSE](LICENSE). Third-party notices are recorded in [Resources/ThirdPartyNotices.txt](Resources/ThirdPartyNotices.txt).
+
 ## Architecture
 
 ```text
@@ -82,6 +86,8 @@ KeyFlowApp
 KeyFlowCore         domain, validation, migration, persistence, matching
 KeyFlowMultitouchBridge
                     isolated C compatibility boundary
+KeyFlowWindowServerBridge
+                    isolated exact-window focus compatibility boundary
 ```
 
 - `KeyFlowCore` contains the portable domain, validation, persistence, matching, and gesture classification.

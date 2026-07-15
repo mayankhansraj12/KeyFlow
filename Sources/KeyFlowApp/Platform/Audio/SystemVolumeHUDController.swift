@@ -8,7 +8,9 @@ import KeyFlowCore
 /// one reusable, layer-backed panel preserve immediate feedback without that hot path.
 @MainActor
 final class SystemVolumeHUDController {
-    private let content = SystemVolumeHUDView(frame: NSRect(x: 0, y: 0, width: 260, height: 72))
+    private let content = SystemVolumeHUDView(
+        frame: NSRect(origin: .zero, size: SystemVolumeHUDLayout.preferredSize)
+    )
     private var hideDeadline = ContinuousClock.now
     private var hideTask: Task<Void, Never>?
 
@@ -43,6 +45,10 @@ final class SystemVolumeHUDController {
 
     func updateAppearance(_ preferences: OverlayAppearancePreferences) {
         content.applyAppearance(preferences)
+    }
+
+    func updatePercentageAlignment(_ alignment: SoundBarPercentageAlignment) {
+        content.applyPercentageAlignment(alignment)
     }
 
     func show(level: Double) {
@@ -80,17 +86,60 @@ final class SystemVolumeHUDController {
     }
 }
 
+struct SystemVolumeHUDLayout: Equatable {
+    static let preferredSize = NSSize(width: 220, height: 48)
+
+    let iconFrame: NSRect
+    let trackFrame: NSRect
+    let percentageFrame: NSRect
+
+    static func frames(in bounds: NSRect) -> Self {
+        let outerMargin: CGFloat = 14
+        let itemSpacing: CGFloat = 10
+        let iconSize: CGFloat = 22
+        let trackHeight: CGFloat = 8
+        let percentageWidth: CGFloat = 44
+        let percentageHeight: CGFloat = 20
+
+        let iconFrame = NSRect(
+            x: bounds.minX + outerMargin,
+            y: bounds.midY - iconSize / 2,
+            width: iconSize,
+            height: iconSize
+        )
+        let percentageFrame = NSRect(
+            x: bounds.maxX - outerMargin - percentageWidth,
+            y: bounds.midY - percentageHeight / 2,
+            width: percentageWidth,
+            height: percentageHeight
+        )
+        let trackX = iconFrame.maxX + itemSpacing
+        let trackFrame = NSRect(
+            x: trackX,
+            y: bounds.midY - trackHeight / 2,
+            width: max(0, percentageFrame.minX - itemSpacing - trackX),
+            height: trackHeight
+        )
+        return Self(
+            iconFrame: iconFrame,
+            trackFrame: trackFrame,
+            percentageFrame: percentageFrame
+        )
+    }
+}
+
 @MainActor
-private final class SystemVolumeHUDView: NSView {
+final class SystemVolumeHUDView: NSView {
     private let effectView = NSVisualEffectView()
     private let tintView = NSView()
+    private let barView = NSView()
     private let iconView = NSImageView()
     private let percentageLabel = NSTextField(labelWithString: "50%")
     private let trackLayer = CALayer()
     private let fillLayer = CALayer()
     private var level = 0.0
     private var displayedSymbol = ""
-    private var appearancePreferences: OverlayAppearancePreferences = .default
+    private var percentageAlignment = SoundBarPercentageAlignment.left
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -100,26 +149,30 @@ private final class SystemVolumeHUDView: NSView {
         effectView.material = .hudWindow
         effectView.blendingMode = .behindWindow
         effectView.state = .active
+        effectView.wantsLayer = true
         addSubview(effectView)
 
         tintView.wantsLayer = true
         addSubview(tintView)
 
+        barView.wantsLayer = true
+        addSubview(barView)
+
         iconView.contentTintColor = .labelColor
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
 
-        percentageLabel.font = .monospacedDigitSystemFont(ofSize: 15, weight: .semibold)
+        percentageLabel.font = .monospacedDigitSystemFont(ofSize: 14, weight: .semibold)
         percentageLabel.textColor = .labelColor
-        percentageLabel.alignment = .right
+        percentageLabel.alignment = percentageAlignment.textAlignment
         addSubview(percentageLabel)
 
         trackLayer.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.22).cgColor
         trackLayer.cornerRadius = 4
         fillLayer.backgroundColor = NSColor.controlAccentColor.cgColor
         fillLayer.cornerRadius = 4
-        layer?.addSublayer(trackLayer)
-        layer?.addSublayer(fillLayer)
+        barView.layer?.addSublayer(trackLayer)
+        barView.layer?.addSublayer(fillLayer)
         applyAppearance(.default)
     }
 
@@ -145,12 +198,11 @@ private final class SystemVolumeHUDView: NSView {
     }
 
     func applyAppearance(_ preferences: OverlayAppearancePreferences) {
-        appearancePreferences = preferences
         appearance = preferences.appKitAppearance
         let cornerRadius = CGFloat(preferences.cornerRadius * 0.8)
         layer?.cornerRadius = cornerRadius
         layer?.borderWidth = preferences.showsBorder ? 1 : 0
-        layer?.borderColor = preferences.appKitTextColor.withAlphaComponent(0.14).cgColor
+        layer?.borderColor = resolvedCGColor(preferences.appKitTextColor, alpha: 0.14)
         effectView.isHidden = preferences.surfaceStyle == .solid
         effectView.alphaValue = preferences.backgroundOpacity
         effectView.layer?.cornerRadius = cornerRadius
@@ -159,30 +211,55 @@ private final class SystemVolumeHUDView: NSView {
             preferences.surfaceStyle == .frosted
             ? preferences.backgroundOpacity * 0.34
             : preferences.backgroundOpacity
-        tintView.layer?.backgroundColor = preferences.appKitBackgroundColor.withAlphaComponent(tintOpacity).cgColor
+        tintView.layer?.backgroundColor = resolvedCGColor(preferences.appKitBackgroundColor, alpha: tintOpacity)
         iconView.contentTintColor = preferences.appKitTextColor
         percentageLabel.textColor = preferences.appKitTextColor
-        trackLayer.backgroundColor = preferences.appKitTextColor.withAlphaComponent(0.22).cgColor
-        fillLayer.backgroundColor = preferences.appKitAccentColor.cgColor
+        trackLayer.backgroundColor = resolvedCGColor(preferences.appKitTextColor, alpha: 0.22)
+        fillLayer.backgroundColor = resolvedCGColor(preferences.appKitAccentColor)
         needsLayout = true
+    }
+
+    func applyPercentageAlignment(_ alignment: SoundBarPercentageAlignment) {
+        guard percentageAlignment != alignment else { return }
+        percentageAlignment = alignment
+        percentageLabel.alignment = alignment.textAlignment
+    }
+
+    private func resolvedCGColor(_ color: NSColor, alpha: CGFloat = 1) -> CGColor {
+        var result = color.withAlphaComponent(alpha).cgColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            result = color.withAlphaComponent(alpha).cgColor
+        }
+        return result
     }
 
     override func layout() {
         super.layout()
         effectView.frame = bounds
         tintView.frame = bounds
-        iconView.frame = NSRect(x: 20, y: 22, width: 28, height: 28)
-        percentageLabel.frame = NSRect(x: bounds.width - 58, y: 25, width: 42, height: 22)
-        let trackFrame = NSRect(x: 64, y: 31, width: bounds.width - 132, height: 10)
+        barView.frame = bounds
+        let frames = SystemVolumeHUDLayout.frames(in: bounds)
+        iconView.frame = frames.iconFrame
+        percentageLabel.frame = frames.percentageFrame
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        trackLayer.frame = trackFrame
+        trackLayer.frame = frames.trackFrame
         fillLayer.frame = NSRect(
-            x: trackFrame.minX,
-            y: trackFrame.minY,
-            width: trackFrame.width * level,
-            height: trackFrame.height
+            x: frames.trackFrame.minX,
+            y: frames.trackFrame.minY,
+            width: frames.trackFrame.width * level,
+            height: frames.trackFrame.height
         )
         CATransaction.commit()
+    }
+}
+
+private extension SoundBarPercentageAlignment {
+    var textAlignment: NSTextAlignment {
+        switch self {
+        case .left: .left
+        case .center: .center
+        case .right: .right
+        }
     }
 }

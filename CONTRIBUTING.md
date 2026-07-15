@@ -1,5 +1,7 @@
 # Contributing
 
+KeyFlow is currently proprietary software. A contribution may be accepted only when the contributor has the right to submit it and agrees that it will be distributed under the repository's current license or a later license selected by the copyright holders.
+
 ## Local validation
 
 Use macOS 15 or later with Xcode 26 / Swift 6.2 or later:

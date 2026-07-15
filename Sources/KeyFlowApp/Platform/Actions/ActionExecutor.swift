@@ -29,7 +29,9 @@ enum ActionExecutionError: LocalizedError {
 protocol ActionExecuting: AnyObject {
     func execute(_ action: ActionDefinition, screenshotStorage: ScreenshotStorageSettings) async throws
     func executeContinuousVolume(_ action: ActionDefinition, stepCount: Int, stepPercentage: Int) throws
-    func updateOverlayAppearance(_ preferences: OverlayAppearancePreferences)
+    func updateVolumeHUDAppearance(_ preferences: OverlayAppearancePreferences)
+    func updateVolumeHUDPercentageAlignment(_ alignment: SoundBarPercentageAlignment)
+    func previewVolumeHUD()
 }
 
 extension ActionExecuting {
@@ -37,7 +39,9 @@ extension ActionExecuting {
         try await execute(action, screenshotStorage: .default)
     }
 
-    func updateOverlayAppearance(_: OverlayAppearancePreferences) {}
+    func updateVolumeHUDAppearance(_: OverlayAppearancePreferences) {}
+    func updateVolumeHUDPercentageAlignment(_: SoundBarPercentageAlignment) {}
+    func previewVolumeHUD() {}
 }
 
 @MainActor
@@ -58,8 +62,17 @@ final class ActionExecutor: ActionExecuting {
         volumeHUD.prepare()
     }
 
-    func updateOverlayAppearance(_ preferences: OverlayAppearancePreferences) {
+    func updateVolumeHUDAppearance(_ preferences: OverlayAppearancePreferences) {
         volumeHUD.updateAppearance(preferences)
+    }
+
+    func updateVolumeHUDPercentageAlignment(_ alignment: SoundBarPercentageAlignment) {
+        volumeHUD.updatePercentageAlignment(alignment)
+    }
+
+    func previewVolumeHUD() {
+        // Exercise the widest percentage label in the on-screen appearance preview.
+        volumeHUD.show(level: 1)
     }
 
     func execute(_ action: ActionDefinition, screenshotStorage: ScreenshotStorageSettings) async throws {

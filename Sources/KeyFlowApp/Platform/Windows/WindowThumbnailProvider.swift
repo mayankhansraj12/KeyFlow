@@ -2,10 +2,25 @@ import AppKit
 import CoreGraphics
 import ScreenCaptureKit
 
+enum WindowThumbnailCacheValidator {
+    static func matches(
+        cachedProcessID: pid_t,
+        cachedTitle: String,
+        cachedBounds: CGRect,
+        window: SwitchableWindow
+    ) -> Bool {
+        cachedProcessID == window.processID
+            && cachedTitle == window.title
+            && abs(cachedBounds.width - window.bounds.width) <= 2
+            && abs(cachedBounds.height - window.bounds.height) <= 2
+    }
+}
+
 @MainActor
 final class WindowThumbnailProvider {
     private struct CacheEntry {
         let processID: pid_t
+        let title: String
         let bounds: CGRect
         let image: NSImage
         let byteCost: Int
@@ -31,10 +46,10 @@ final class WindowThumbnailProvider {
     // crisp at the largest card size while avoiding unnecessary ScreenCaptureKit scaling.
     private nonisolated static let maximumPixelLength: CGFloat = 480
     private static let maximumCacheBytes = 32 * 1_024 * 1_024
-    private static let maximumCacheAge: Duration = .seconds(600)
-    // Capturing windows is the dominant launch cost of the overlay. Keep valid previews
-    // for the working session; bounds/PID changes still invalidate them immediately.
-    private static let minimumRefreshInterval: Duration = .seconds(300)
+    private static let maximumCacheAge: Duration = .seconds(120)
+    // A cached image is only the zero-latency first frame. Revalidate shortly
+    // afterward so browser navigation and tab/window changes cannot remain stale.
+    private static let minimumRefreshInterval: Duration = .seconds(2)
 
     private var cache: [CGWindowID: CacheEntry] = [:]
     private var cacheByteCost = 0
@@ -42,18 +57,21 @@ final class WindowThumbnailProvider {
     func cachedThumbnails(for windows: [SwitchableWindow]) -> [CGWindowID: NSImage] {
         let now = ContinuousClock.now
         removeExpiredEntries(now: now)
+        removeEntriesMissingFromCurrentCatalog(windows)
         var result: [CGWindowID: NSImage] = [:]
         for window in windows {
             guard
-                let windowID = window.windowID,
-                var entry = cache[windowID],
-                entry.processID == window.processID,
-                abs(entry.bounds.width - window.bounds.width) <= 2,
-                abs(entry.bounds.height - window.bounds.height) <= 2
+                var entry = cache[window.windowID],
+                WindowThumbnailCacheValidator.matches(
+                    cachedProcessID: entry.processID,
+                    cachedTitle: entry.title,
+                    cachedBounds: entry.bounds,
+                    window: window
+                )
             else { continue }
             entry.lastAccess = now
-            cache[windowID] = entry
-            result[windowID] = entry.image
+            cache[window.windowID] = entry
+            result[window.windowID] = entry.image
         }
         return result
     }
@@ -67,11 +85,13 @@ final class WindowThumbnailProvider {
         var result = cachedThumbnails(for: windows)
         let windowsNeedingRefresh = windows.filter { window in
             guard
-                let windowID = window.windowID,
-                let entry = cache[windowID],
-                entry.processID == window.processID,
-                abs(entry.bounds.width - window.bounds.width) <= 2,
-                abs(entry.bounds.height - window.bounds.height) <= 2
+                let entry = cache[window.windowID],
+                WindowThumbnailCacheValidator.matches(
+                    cachedProcessID: entry.processID,
+                    cachedTitle: entry.title,
+                    cachedBounds: entry.bounds,
+                    window: window
+                )
             else { return true }
             return now - entry.capturedAt >= Self.minimumRefreshInterval
         }
@@ -80,9 +100,7 @@ final class WindowThumbnailProvider {
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
             let requestedWindows = Dictionary(
-                uniqueKeysWithValues: windowsNeedingRefresh.compactMap { window in
-                    window.windowID.map { ($0, window) }
-                }
+                uniqueKeysWithValues: windowsNeedingRefresh.map { ($0.windowID, $0) }
             )
             let shareableWindows = Dictionary(
                 uniqueKeysWithValues: content.windows.map { ($0.windowID, $0) }
@@ -91,12 +109,11 @@ final class WindowThumbnailProvider {
             // so the preview the user is looking at is the first result published.
             let targets = windowsNeedingRefresh.compactMap { requested -> CaptureTarget? in
                 guard
-                    let windowID = requested.windowID,
-                    let window = shareableWindows[windowID],
-                    requestedWindows[windowID] != nil
+                    let window = shareableWindows[requested.windowID],
+                    requestedWindows[requested.windowID] != nil
                 else { return nil }
                 return CaptureTarget(
-                    windowID: windowID,
+                    windowID: requested.windowID,
                     processID: requested.processID,
                     bounds: requested.bounds,
                     window: window
@@ -116,6 +133,7 @@ final class WindowThumbnailProvider {
                         byteCost: capture.image.bytesPerRow * capture.image.height,
                         windowID: capture.windowID,
                         processID: capture.processID,
+                        title: requestedWindows[capture.windowID]?.title ?? "",
                         bounds: capture.bounds
                     )
                     result[capture.windowID] = image
@@ -167,11 +185,13 @@ final class WindowThumbnailProvider {
         byteCost: Int,
         windowID: CGWindowID,
         processID: pid_t,
+        title: String,
         bounds: CGRect
     ) {
         if let oldEntry = cache[windowID] { cacheByteCost -= oldEntry.byteCost }
         let entry = CacheEntry(
             processID: processID,
+            title: title,
             bounds: bounds,
             image: image,
             byteCost: byteCost,
@@ -188,6 +208,14 @@ final class WindowThumbnailProvider {
             now - entry.lastAccess > Self.maximumCacheAge ? windowID : nil
         }
         for windowID in expiredIDs {
+            if let entry = cache.removeValue(forKey: windowID) { cacheByteCost -= entry.byteCost }
+        }
+    }
+
+    private func removeEntriesMissingFromCurrentCatalog(_ windows: [SwitchableWindow]) {
+        let currentIDs = Set(windows.map(\.windowID))
+        let missingIDs = cache.keys.filter { !currentIDs.contains($0) }
+        for windowID in missingIDs {
             if let entry = cache.removeValue(forKey: windowID) { cacheByteCost -= entry.byteCost }
         }
     }

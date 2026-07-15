@@ -12,7 +12,7 @@ struct KeyFlowCoreTests {
             name: "Open docs",
             isEnabled: true,
             trigger: .init(kind: .keyboard, keyCode: 2, modifiers: [.command, .shift]),
-            action: .init(kind: .openURL, value: "https://example.com/docs"),
+            action: .init(kind: .launchApplication, value: "com.apple.Safari"),
             createdAt: timestamp,
             updatedAt: timestamp
         )
@@ -25,7 +25,8 @@ struct KeyFlowCoreTests {
         let configuration = KeyFlowConfiguration(
             revision: 7,
             mappings: [mapping],
-            gestureSettings: gestureSettings
+            gestureSettings: gestureSettings,
+            applicationPreferences: .init(hideFromDock: true)
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -35,6 +36,7 @@ struct KeyFlowCoreTests {
         let decoded = try decoder.decode(KeyFlowConfiguration.self, from: encoder.encode(configuration))
 
         #expect(decoded == configuration)
+        #expect(decoded.applicationPreferences.hideFromDock)
     }
 
     @Test("Every window switcher size preset persists through configuration encoding")
@@ -64,7 +66,8 @@ struct KeyFlowCoreTests {
         settings.volumePreferences = VolumeAdjustmentPreferences(
             speedMultiplier: 2.25,
             responseMilliseconds: 400,
-            stepPercentage: 5
+            stepPercentage: 5,
+            percentageAlignment: .center
         )
         let configuration = KeyFlowConfiguration(gestureSettings: settings)
         let decoded = try JSONDecoder().decode(
@@ -73,13 +76,14 @@ struct KeyFlowCoreTests {
         )
 
         #expect(decoded.gestureSettings.volumePreferences == settings.volumePreferences)
+        #expect(decoded.gestureSettings.volumePreferences.percentageAlignment == .center)
         #expect(VolumeAdjustmentPreferences(responseMilliseconds: 37).responseMilliseconds == 50)
         #expect(VolumeAdjustmentPreferences(stepPercentage: 10).stepPercentage == 2)
         #expect(VolumeAdjustmentPreferences(speedMultiplier: 9).speedMultiplier == 2.5)
     }
 
-    @Test("Overlay appearance clamps and persists production choices")
-    func overlayAppearancePersistence() throws {
+    @Test("Each overlay appearance persists independently")
+    func featureAppearancePersistence() throws {
         let appearance = OverlayAppearancePreferences(
             theme: .dark,
             surfaceStyle: .solid,
@@ -89,15 +93,135 @@ struct KeyFlowCoreTests {
             cornerRadius: 26,
             showsBorder: false
         )
-        let configuration = KeyFlowConfiguration(overlayAppearance: appearance)
+        var switcher = WindowSwitcherPreferences.default
+        switcher.appearance = appearance
+        var gestures = GestureSettings.default
+        gestures.volumePreferences.hudAppearance = OverlayAppearancePreferences(
+            theme: .light,
+            backgroundColor: .light,
+            accent: .green,
+            customAccentColor: PersistedRGBAColor(red: 0.12, green: 0.56, blue: 0.91),
+            backgroundOpacity: 0.8
+        )
+        let configuration = KeyFlowConfiguration(
+            windowSwitcherPreferences: switcher,
+            gestureSettings: gestures
+        )
         let decoded = try JSONDecoder().decode(
             KeyFlowConfiguration.self,
             from: JSONEncoder().encode(configuration)
         )
 
-        #expect(decoded.overlayAppearance == appearance)
+        #expect(decoded.windowSwitcherPreferences.appearance == appearance)
+        #expect(decoded.gestureSettings.volumePreferences.hudAppearance == gestures.volumePreferences.hudAppearance)
+        #expect(decoded.windowSwitcherPreferences.appearance != decoded.gestureSettings.volumePreferences.hudAppearance)
         #expect(OverlayAppearancePreferences(backgroundOpacity: 0).backgroundOpacity == 0.45)
         #expect(OverlayAppearancePreferences(cornerRadius: 100).cornerRadius == 30)
+        #expect(
+            PersistedRGBAColor(red: -1, green: 0.4, blue: 2, alpha: 4)
+                == .init(
+                    red: 0,
+                    green: 0.4,
+                    blue: 1,
+                    alpha: 1
+                ))
+    }
+
+    @Test("Schema fourteen keeps preset colors and gains an empty custom hue")
+    func schemaFourteenCustomHueMigration() throws {
+        let data = Data(
+            """
+            {
+              "schemaVersion": 14,
+              "revision": 8,
+              "mappings": [],
+              "gestureSettings": {
+                "volumePreferences": {
+                  "hudAppearance": {
+                    "accent": "orange"
+                  }
+                }
+              }
+            }
+            """.utf8
+        )
+
+        let migrated = try ConfigurationMigrator.decode(data, using: JSONDecoder())
+
+        #expect(migrated.schemaVersion == KeyFlowConfiguration.currentSchemaVersion)
+        #expect(migrated.gestureSettings.volumePreferences.hudAppearance.accent == .orange)
+        #expect(migrated.gestureSettings.volumePreferences.hudAppearance.customAccentColor == nil)
+    }
+
+    @Test("Schema fifteen keeps KeyFlow visible in the Dock")
+    func schemaFifteenDockVisibilityMigration() throws {
+        let data = Data(
+            """
+            {
+              "schemaVersion": 15,
+              "revision": 9,
+              "mappings": []
+            }
+            """.utf8
+        )
+
+        let migrated = try ConfigurationMigrator.decode(data, using: JSONDecoder())
+
+        #expect(migrated.schemaVersion == KeyFlowConfiguration.currentSchemaVersion)
+        #expect(!migrated.applicationPreferences.hideFromDock)
+    }
+
+    @Test("Schema sixteen legacy keyboard actions migrate fail-closed")
+    func schemaSixteenApplicationShortcutMigration() throws {
+        let mappingID = UUID()
+        let data = Data(
+            """
+            {
+              "schemaVersion": 16,
+              "revision": 10,
+              "mappings": [{
+                "id": "\(mappingID.uuidString)",
+                "name": "Legacy URL",
+                "isEnabled": true,
+                "trigger": {"kind": "keyboard", "keyCode": 2, "modifiers": 1},
+                "action": {"kind": "openURL", "value": "https://example.com"},
+                "consumesKeyboardInput": true,
+                "createdAt": "2026-07-15T00:00:00Z",
+                "updatedAt": "2026-07-15T00:00:00Z"
+              }]
+            }
+            """.utf8
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let migrated = try ConfigurationMigrator.decode(data, using: decoder)
+
+        #expect(migrated.schemaVersion == KeyFlowConfiguration.currentSchemaVersion)
+        #expect(migrated.mappings[0].action.kind == .openURL)
+        #expect(MappingValidator.validate(migrated.mappings[0]).contains(.keyboardShortcutRequiresApplication))
+        #expect(RuntimeSnapshot(configuration: migrated).keyboardMappings.isEmpty)
+    }
+
+    @Test("Schema seventeen keeps the established left-aligned Sound Bar percentage")
+    func schemaSeventeenSoundBarAlignmentMigration() throws {
+        let data = Data(
+            """
+            {
+              "schemaVersion": 17,
+              "revision": 11,
+              "mappings": [],
+              "gestureSettings": {
+                "volumePreferences": {}
+              }
+            }
+            """.utf8
+        )
+
+        let migrated = try ConfigurationMigrator.decode(data, using: JSONDecoder())
+
+        #expect(migrated.schemaVersion == KeyFlowConfiguration.currentSchemaVersion)
+        #expect(migrated.gestureSettings.volumePreferences.percentageAlignment == .left)
     }
 
     @Test("Schema twelve gains the established overlay appearance defaults")
@@ -118,9 +242,42 @@ struct KeyFlowCoreTests {
         let migrated = try ConfigurationMigrator.decode(data, using: JSONDecoder())
 
         #expect(migrated.schemaVersion == KeyFlowConfiguration.currentSchemaVersion)
-        #expect(migrated.overlayAppearance.theme == .system)
-        #expect(migrated.overlayAppearance.backgroundOpacity == 0.96)
-        #expect(migrated.overlayAppearance.accent == .purple)
+        #expect(migrated.windowSwitcherPreferences.appearance.accent == .purple)
+        #expect(migrated.gestureSettings.volumePreferences.hudAppearance.accent == .purple)
+        #expect(migrated.overlayAppearance == .default)
+    }
+
+    @Test("Schema thirteen shared appearance splits into independent feature settings")
+    func schemaThirteenAppearanceSplit() throws {
+        let data = Data(
+            """
+            {
+              "schemaVersion": 13,
+              "revision": 7,
+              "mappings": [],
+              "overlayAppearance": {
+                "theme": "dark",
+                "surfaceStyle": "solid",
+                "backgroundColor": "midnight",
+                "accent": "green",
+                "backgroundOpacity": 0.7,
+                "cornerRadius": 24,
+                "showsBorder": false
+              }
+            }
+            """.utf8
+        )
+
+        let migrated = try ConfigurationMigrator.decode(data, using: JSONDecoder())
+        let switcherAppearance = migrated.windowSwitcherPreferences.appearance
+        let volumeAppearance = migrated.gestureSettings.volumePreferences.hudAppearance
+
+        #expect(migrated.schemaVersion == KeyFlowConfiguration.currentSchemaVersion)
+        #expect(switcherAppearance == volumeAppearance)
+        #expect(switcherAppearance.theme == .dark)
+        #expect(switcherAppearance.accent == .green)
+        #expect(switcherAppearance.backgroundOpacity == 0.7)
+        #expect(!switcherAppearance.showsBorder)
     }
 
     @Test("Schema eleven gains immediate two-percent volume defaults")
@@ -236,7 +393,7 @@ struct KeyFlowCoreTests {
             name: "Match me",
             isEnabled: true,
             trigger: .init(kind: .keyboard, keyCode: 40, modifiers: [.command, .option]),
-            action: .init(kind: .typeText, value: "matched")
+            action: .init(kind: .launchApplication, value: "com.apple.Safari")
         )
         let snapshot = RuntimeSnapshot(configuration: .init(mappings: [mapping]))
 
@@ -271,6 +428,7 @@ struct KeyFlowCoreTests {
         #expect(errors.contains(.missingName))
         #expect(errors.contains(.missingKeyCode))
         #expect(errors.contains(.invalidURL))
+        #expect(errors.contains(.keyboardShortcutRequiresApplication))
     }
 
     @Test("Four-finger volume mapping compiles without an action value")
@@ -571,6 +729,49 @@ struct KeyFlowCoreTests {
         let loaded = try await repository.load()
         #expect(loaded.revision == 2)
         #expect(loaded.mappings.first?.name == "Newer")
+
+        let fileMode = try #require(
+            FileManager.default.attributesOfItem(atPath: fileURL.path)[.posixPermissions] as? NSNumber
+        )
+        let directoryMode = try #require(
+            FileManager.default.attributesOfItem(atPath: directory.path)[.posixPermissions] as? NSNumber
+        )
+        #expect(fileMode.intValue & 0o777 == 0o600)
+        #expect(directoryMode.intValue & 0o777 == 0o700)
+    }
+
+    @Test("Repository persists migrations and retains the pre-migration backup")
+    func repositoryPersistsMigration() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let fileURL = directory.appendingPathComponent("configuration.json")
+        let repository = ConfigurationRepository(fileURL: fileURL)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data(
+            """
+            {
+              "schemaVersion": 17,
+              "revision": 41,
+              "mappings": []
+            }
+            """.utf8
+        ).write(to: fileURL)
+
+        let loaded = try await repository.load()
+        let persisted = try JSONSerialization.jsonObject(with: Data(contentsOf: fileURL)) as? [String: Any]
+        let backupURL =
+            directory
+            .appendingPathComponent("Backups")
+            .appendingPathComponent("configuration-r0000000041.json")
+        let backup = try JSONSerialization.jsonObject(with: Data(contentsOf: backupURL)) as? [String: Any]
+
+        #expect(loaded.schemaVersion == KeyFlowConfiguration.currentSchemaVersion)
+        #expect(persisted?["schemaVersion"] as? Int == KeyFlowConfiguration.currentSchemaVersion)
+        #expect(backup?["schemaVersion"] as? Int == 17)
+        let backupMode = try #require(
+            FileManager.default.attributesOfItem(atPath: backupURL.path)[.posixPermissions] as? NSNumber
+        )
+        #expect(backupMode.intValue & 0o777 == 0o600)
     }
 
     @Test("Repository rejects configurations from a newer schema")
@@ -608,7 +809,9 @@ struct KeyFlowCoreTests {
                 trigger: .init(kind: .fourFingerTap),
                 action: .init(kind: kind, value: "   ")
             )
-            #expect(MappingValidator.validate(mapping).contains(.missingActionValue))
+            let expectedError: MappingValidationError =
+                kind == .launchApplication ? .missingApplication : .missingActionValue
+            #expect(MappingValidator.validate(mapping).contains(expectedError))
         }
     }
 
@@ -834,5 +1037,13 @@ struct KeyFlowCoreTests {
 
         #expect(recovered.revision == 1)
         #expect(recovered.mappings.first?.name == "Recover me")
+
+        let repaired = try await ConfigurationRepository(fileURL: fileURL).load()
+        #expect(repaired == recovered)
+
+        try await reader.save(.init(revision: 3, mappings: [Mapping(name: "After recovery")]))
+        let savedAfterRecovery = try await ConfigurationRepository(fileURL: fileURL).load()
+        #expect(savedAfterRecovery.revision == 3)
+        #expect(savedAfterRecovery.mappings.first?.name == "After recovery")
     }
 }

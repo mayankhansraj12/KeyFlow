@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import Foundation
 import KeyFlowCore
+import UniformTypeIdentifiers
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -13,6 +14,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var rawTouchContactCount = 0
     @Published private(set) var windowSwitcherPreferences: WindowSwitcherPreferences = .default
     @Published private(set) var gestureSettings: GestureSettings = .default
+    @Published private(set) var applicationPreferences: ApplicationPreferences = .default
+    @Published private(set) var dockVisibilityRequiresRelaunch = false
     @Published private(set) var macOSScreenshotDestinationDescription: String
     @Published private(set) var permissionStatus: PermissionStatus
     @Published private(set) var launchAtLoginEnabled: Bool
@@ -28,6 +31,7 @@ final class AppModel: ObservableObject {
     private let runtime: any RuntimeControlling
     private let diagnosticsExporter: any DiagnosticsExporting
     private let windowSwitcher: any WindowSwitching
+    private let applicationPresentation: any ApplicationPresentationControlling
     private var started = false
     private var interactiveStartedAt: Date?
     private var continuousVolumeStartedAt: Date?
@@ -43,6 +47,7 @@ final class AppModel: ObservableObject {
         runtime: (any RuntimeControlling)? = nil,
         diagnosticsExporter: (any DiagnosticsExporting)? = nil,
         windowSwitcher: (any WindowSwitching)? = nil,
+        applicationPresentation: (any ApplicationPresentationControlling)? = nil,
         syntheticMarker: Int64 = Int64.random(in: 1...Int64.max)
     ) {
         self.repository = repository
@@ -52,6 +57,7 @@ final class AppModel: ObservableObject {
         self.runtime = runtime ?? AppRuntimeController(syntheticMarker: syntheticMarker)
         self.diagnosticsExporter = diagnosticsExporter ?? SystemDiagnosticsExporter()
         self.windowSwitcher = windowSwitcher ?? WindowSwitcherController()
+        self.applicationPresentation = applicationPresentation ?? SystemApplicationPresentationController()
         permissionStatus = permissionService.currentStatus()
         launchAtLoginEnabled = loginItemService.isEnabled
         macOSScreenshotDestinationDescription = SystemScreenshotSettings.destinationDescription()
@@ -67,9 +73,16 @@ final class AppModel: ObservableObject {
             revision = configuration.revision
             windowSwitcherPreferences = configuration.windowSwitcherPreferences
             gestureSettings = configuration.gestureSettings
+            applicationPreferences = configuration.applicationPreferences
+            applicationPresentation.prepareHiddenFromDock(configuration.applicationPreferences.hideFromDock)
+            dockVisibilityRequiresRelaunch =
+                applicationPresentation.isHiddenFromDock != configuration.applicationPreferences.hideFromDock
             windowSwitcher.update(preferences: configuration.windowSwitcherPreferences)
             windowSwitcher.update(appearance: configuration.windowSwitcherPreferences.appearance)
-            actionExecutor.updateOverlayAppearance(configuration.gestureSettings.volumePreferences.hudAppearance)
+            actionExecutor.updateVolumeHUDAppearance(configuration.gestureSettings.volumePreferences.hudAppearance)
+            actionExecutor.updateVolumeHUDPercentageAlignment(
+                configuration.gestureSettings.volumePreferences.percentageAlignment
+            )
             windowSwitcher.setEnabled(configuration.gestureSettings.interactiveWindowSwitcherEnabled)
             selectedMappingID = mappings.first(where: { $0.trigger.kind == .keyboard })?.id
         } catch {
@@ -91,6 +104,37 @@ final class AppModel: ObservableObject {
         mappings.append(mapping)
         selectedMappingID = mapping.id
         commitChanges()
+    }
+
+    func chooseApplication(forMappingID mappingID: UUID) {
+        let panel = NSOpenPanel()
+        panel.title = "Choose an Application"
+        panel.prompt = "Choose Application"
+        panel.message = "Select the application this keyboard shortcut should open."
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.treatsFilePackagesAsDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        setApplication(url, forMappingID: mappingID)
+    }
+
+    func setApplication(_ url: URL, forMappingID mappingID: UUID) {
+        guard let selection = ApplicationSelection.selection(for: url) else {
+            errorMessage = "Choose a valid macOS application."
+            return
+        }
+        updateMapping(id: mappingID) { mapping in
+            mapping.action = .init(
+                kind: .launchApplication,
+                value: selection.bundleIdentifier ?? selection.url.path
+            )
+            if mapping.name == "Open Application" || mapping.name == "New Shortcut" {
+                mapping.name = "Open \(selection.name)"
+            }
+        }
     }
 
     func setVolumeAdjustmentEnabled(_ enabled: Bool) {
@@ -120,7 +164,8 @@ final class AppModel: ObservableObject {
             speedMultiplier: gestureSettings.volumePreferences.speedMultiplier,
             responseMilliseconds: milliseconds,
             stepPercentage: gestureSettings.volumePreferences.stepPercentage,
-            hudAppearance: gestureSettings.volumePreferences.hudAppearance
+            hudAppearance: gestureSettings.volumePreferences.hudAppearance,
+            percentageAlignment: gestureSettings.volumePreferences.percentageAlignment
         )
         commitChanges()
     }
@@ -130,7 +175,8 @@ final class AppModel: ObservableObject {
             speedMultiplier: gestureSettings.volumePreferences.speedMultiplier,
             responseMilliseconds: gestureSettings.volumePreferences.responseMilliseconds,
             stepPercentage: percentage,
-            hudAppearance: gestureSettings.volumePreferences.hudAppearance
+            hudAppearance: gestureSettings.volumePreferences.hudAppearance,
+            percentageAlignment: gestureSettings.volumePreferences.percentageAlignment
         )
         commitChanges()
     }
@@ -143,18 +189,31 @@ final class AppModel: ObservableObject {
             surfaceStyle: appearance.surfaceStyle,
             backgroundColor: appearance.backgroundColor,
             accent: appearance.accent,
+            customAccentColor: appearance.customAccentColor,
             backgroundOpacity: appearance.backgroundOpacity,
             cornerRadius: appearance.cornerRadius,
             showsBorder: appearance.showsBorder
         )
-        actionExecutor.updateOverlayAppearance(gestureSettings.volumePreferences.hudAppearance)
+        actionExecutor.updateVolumeHUDAppearance(gestureSettings.volumePreferences.hudAppearance)
+        commitChanges()
+    }
+
+    func setVolumeHUDPercentageAlignment(_ alignment: SoundBarPercentageAlignment) {
+        gestureSettings.volumePreferences.percentageAlignment = alignment
+        actionExecutor.updateVolumeHUDPercentageAlignment(alignment)
         commitChanges()
     }
 
     func resetVolumeHUDAppearance() {
         gestureSettings.volumePreferences.hudAppearance = .default
-        actionExecutor.updateOverlayAppearance(.default)
+        gestureSettings.volumePreferences.percentageAlignment = .left
+        actionExecutor.updateVolumeHUDAppearance(.default)
+        actionExecutor.updateVolumeHUDPercentageAlignment(.left)
         commitChanges()
+    }
+
+    func previewVolumeHUD() {
+        actionExecutor.previewVolumeHUD()
     }
 
     func setGestureFeatureEnabled(_ feature: GestureFeature, enabled: Bool) {
@@ -388,9 +447,24 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func openMainWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+    func setHiddenFromDock(_ hidden: Bool) {
+        applicationPreferences.hideFromDock = hidden
+        applicationPresentation.prepareHiddenFromDock(hidden)
+        dockVisibilityRequiresRelaunch = applicationPresentation.isHiddenFromDock != hidden
+        commitChanges()
+    }
+
+    func relaunchToApplyDockVisibility() {
+        let configuration = currentConfiguration()
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await repository.save(configuration)
+                try applicationPresentation.relaunch()
+            } catch {
+                errorMessage = "Could not relaunch KeyFlow: \(error.localizedDescription)"
+            }
+        }
     }
 
     private func configureRuntimeCallbacks() {
@@ -455,12 +529,7 @@ final class AppModel: ObservableObject {
     private func commitChanges() {
         revision += 1
         publishRuntimeSnapshot()
-        let configuration = KeyFlowConfiguration(
-            revision: revision,
-            mappings: mappings,
-            windowSwitcherPreferences: windowSwitcherPreferences,
-            gestureSettings: gestureSettings
-        )
+        let configuration = currentConfiguration()
         Task { [weak self] in
             do {
                 try await self?.repository.save(configuration)
@@ -473,13 +542,17 @@ final class AppModel: ObservableObject {
     }
 
     private func publishRuntimeSnapshot() {
-        let configuration = KeyFlowConfiguration(
+        runtime.update(snapshot: RuntimeSnapshot(configuration: currentConfiguration()))
+    }
+
+    private func currentConfiguration() -> KeyFlowConfiguration {
+        KeyFlowConfiguration(
             revision: revision,
             mappings: mappings,
             windowSwitcherPreferences: windowSwitcherPreferences,
-            gestureSettings: gestureSettings
+            gestureSettings: gestureSettings,
+            applicationPreferences: applicationPreferences
         )
-        runtime.update(snapshot: RuntimeSnapshot(configuration: configuration))
     }
 
     private func execute(_ mapping: Mapping) async {

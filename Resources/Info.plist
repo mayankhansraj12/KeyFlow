@@ -18,14 +18,18 @@
     <string>KeyFlow.icns</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.6</string>
+    <string>0.1.7</string>
     <key>CFBundleVersion</key>
-    <string>7</string>
+    <string>8</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>KeyFlow captures previews of your open windows for the interactive window switcher. Window previews are processed on this Mac and are not transmitted.</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 KeyFlow contributors.</string>
     <key>NSPrincipalClass</key>

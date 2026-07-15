@@ -10,6 +10,30 @@ import Testing
 @Suite("KeyFlow application model", .serialized)
 @MainActor
 struct AppModelTests {
+    @Test("Sound Bar layout uses compact symmetric spacing")
+    func soundBarLayoutSpacing() {
+        let bounds = NSRect(origin: .zero, size: SystemVolumeHUDLayout.preferredSize)
+        let layout = SystemVolumeHUDLayout.frames(in: bounds)
+
+        #expect(bounds.width == 220)
+        #expect(bounds.height == 48)
+        #expect(layout.iconFrame.minX == 14)
+        #expect(layout.iconFrame.midY == bounds.midY)
+        #expect(layout.trackFrame.minX - layout.iconFrame.maxX == 10)
+        #expect(layout.percentageFrame.minX - layout.trackFrame.maxX == 10)
+        #expect(bounds.maxX - layout.percentageFrame.maxX == 14)
+        #expect(layout.trackFrame.midY == bounds.midY)
+        #expect(layout.percentageFrame.midY == bounds.midY)
+
+        let view = SystemVolumeHUDView(frame: bounds)
+        let percentageLabel = view.subviews.compactMap { $0 as? NSTextField }.first
+        #expect(percentageLabel?.alignment == .left)
+        view.applyPercentageAlignment(.center)
+        #expect(percentageLabel?.alignment == .center)
+        view.applyPercentageAlignment(.right)
+        #expect(percentageLabel?.alignment == .right)
+    }
+
     @Test("Raw touch callback ignores pointer frames and forwards one gesture release")
     func rawTouchFrameGate() {
         var gate = RawTouchFrameGate()
@@ -154,7 +178,7 @@ struct AppModelTests {
         )
     }
 
-    @Test("Window catalog scope can include accessory and background applications")
+    @Test("Window catalog requires real standard windows and rejects shell surfaces")
     func windowCatalogScope() {
         #expect(WindowCatalogFilter.includesApplication(activationPolicy: .regular, scope: .standardApplications))
         #expect(
@@ -167,7 +191,7 @@ struct AppModelTests {
         #expect(WindowCatalogFilter.includesApplication(activationPolicy: .accessory, scope: .allActiveWindows))
         #expect(WindowCatalogFilter.includesApplication(activationPolicy: .prohibited, scope: .allActiveWindows))
         #expect(
-            WindowCatalogFilter.includesWindow(
+            !WindowCatalogFilter.includesWindow(
                 layer: 24,
                 isOnscreen: true,
                 activationPolicy: .accessory,
@@ -185,7 +209,7 @@ struct AppModelTests {
             )
         )
         #expect(
-            !WindowCatalogFilter.includesWindow(
+            WindowCatalogFilter.includesWindow(
                 layer: 0,
                 isOnscreen: false,
                 activationPolicy: .accessory,
@@ -212,21 +236,62 @@ struct AppModelTests {
             )
         )
         #expect(
-            WindowCatalogFilter.includesApplicationFallback(
-                activationPolicy: .regular,
-                scope: .allActiveWindows
+            WindowCatalogFilter.includesAccessibilityWindow(
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String
             )
         )
         #expect(
-            !WindowCatalogFilter.includesApplicationFallback(
-                activationPolicy: .accessory,
-                scope: .allActiveWindows
+            WindowCatalogFilter.includesAccessibilityWindow(
+                role: kAXWindowRole as String,
+                subrole: kAXDialogSubrole as String
             )
         )
         #expect(
-            !WindowCatalogFilter.includesApplicationFallback(
-                activationPolicy: .prohibited,
-                scope: .allActiveWindows
+            !WindowCatalogFilter.includesAccessibilityWindow(
+                role: kAXWindowRole as String,
+                subrole: kAXFloatingWindowSubrole as String
+            )
+        )
+        #expect(
+            !WindowCatalogFilter.includesAccessibilityWindow(
+                role: kAXButtonRole as String,
+                subrole: nil
+            )
+        )
+    }
+
+    @Test("Window thumbnail cache rejects content from an old browser tab")
+    func windowThumbnailCacheIdentity() {
+        let processID = ProcessInfo.processInfo.processIdentifier
+        let applicationElement = AXUIElementCreateApplication(processID)
+        let window = SwitchableWindow(
+            id: 42,
+            windowID: 42,
+            processID: processID,
+            title: "Current Tab",
+            applicationName: "Browser",
+            bounds: CGRect(x: 10, y: 20, width: 1200, height: 800),
+            applicationIcon: NSImage(size: NSSize(width: 32, height: 32)),
+            applicationElement: applicationElement,
+            windowElement: applicationElement,
+            thumbnail: nil
+        )
+
+        #expect(
+            WindowThumbnailCacheValidator.matches(
+                cachedProcessID: processID,
+                cachedTitle: "Current Tab",
+                cachedBounds: window.bounds,
+                window: window
+            )
+        )
+        #expect(
+            !WindowThumbnailCacheValidator.matches(
+                cachedProcessID: processID,
+                cachedTitle: "Closed Tab",
+                cachedBounds: window.bounds,
+                window: window
             )
         )
     }
@@ -466,8 +531,20 @@ struct AppModelTests {
 
         #expect(model.revision == 1)
         #expect(model.mappings.count == 1)
+        #expect(model.mappings[0].action.kind == .launchApplication)
+        #expect(model.mappings[0].action.value.isEmpty)
+        #expect(model.mappings[0].trigger.keyCode == nil)
         #expect(dependencies.runtime.snapshots.last?.revision == 1)
         #expect(await store.savedConfigurations().last?.revision == 1)
+
+        let calculatorURL = URL(fileURLWithPath: "/System/Applications/Calculator.app")
+        model.setApplication(calculatorURL, forMappingID: model.mappings[0].id)
+        await eventually { await store.savedConfigurations().count == 2 }
+
+        #expect(model.mappings[0].action.kind == .launchApplication)
+        #expect(model.mappings[0].action.value == "com.apple.calculator")
+        #expect(model.mappings[0].name == "Open Calculator")
+        #expect(await store.savedConfigurations().last?.mappings[0].action.value == "com.apple.calculator")
     }
 
     @Test("Fixed gesture features do not create or delete mappings")
@@ -555,47 +632,66 @@ struct AppModelTests {
             $0.cardSize = .large
             $0.navigationSpeed = 2.25
             $0.windowScope = .standardApplications
-            $0.accent = .purple
+            $0.appearance.accent = .purple
+            $0.appearance.backgroundOpacity = 0.75
             $0.showWindowTitles = false
         }
         await eventually { await store.savedConfigurations().count == 1 }
 
         #expect(model.windowSwitcherPreferences.cardSize == .large)
         #expect(model.windowSwitcherPreferences.navigationSpeed == 2.25)
-        #expect(dependencies.windowSwitcher.preferences.last?.accent == .purple)
+        #expect(dependencies.windowSwitcher.appearances.last?.accent == .purple)
+        #expect(dependencies.windowSwitcher.appearances.last?.backgroundOpacity == 0.75)
         #expect(
             await store.savedConfigurations().last?.windowSwitcherPreferences.windowScope == .standardApplications
         )
         #expect(await store.savedConfigurations().last?.windowSwitcherPreferences.showWindowTitles == false)
     }
 
-    @Test("Shared overlay appearance applies live, persists, and restores defaults")
-    func overlayAppearanceCustomization() async {
+    @Test("Volume HUD appearance is independent, live, persisted, and resettable")
+    func volumeHUDAppearanceCustomization() async {
         let store = MockConfigurationStore(configuration: .init())
         let dependencies = makeDependencies(store: store)
         let model = dependencies.model
         await model.startIfNeeded()
 
-        model.updateOverlayAppearance {
+        model.updateVolumeHUDAppearance {
             $0.theme = .dark
             $0.surfaceStyle = .solid
             $0.backgroundColor = .midnight
             $0.accent = .green
+            $0.customAccentColor = PersistedRGBAColor(red: 0.16, green: 0.72, blue: 0.48)
             $0.backgroundOpacity = 0.7
             $0.cornerRadius = 26
             $0.showsBorder = false
         }
         await eventually { await store.savedConfigurations().count == 1 }
 
-        #expect(model.overlayAppearance.theme == .dark)
-        #expect(model.overlayAppearance.accent == .green)
-        #expect(dependencies.windowSwitcher.appearances.last == model.overlayAppearance)
-        #expect(await store.savedConfigurations().last?.overlayAppearance == model.overlayAppearance)
+        let appearance = model.gestureSettings.volumePreferences.hudAppearance
+        #expect(appearance.theme == .dark)
+        #expect(appearance.accent == .green)
+        #expect(appearance.customAccentColor == .init(red: 0.16, green: 0.72, blue: 0.48))
+        #expect(dependencies.actions.volumeHUDAppearances.last == appearance)
+        #expect(await store.savedConfigurations().last?.gestureSettings.volumePreferences.hudAppearance == appearance)
+        #expect(model.windowSwitcherPreferences.appearance == .default)
 
-        model.resetOverlayAppearance()
+        model.setVolumeHUDPercentageAlignment(.center)
         await eventually { await store.savedConfigurations().count == 2 }
-        #expect(model.overlayAppearance == .default)
-        #expect(dependencies.windowSwitcher.appearances.last == .default)
+        #expect(model.gestureSettings.volumePreferences.percentageAlignment == .center)
+        #expect(dependencies.actions.volumeHUDPercentageAlignments.last == .center)
+        #expect(
+            await store.savedConfigurations().last?.gestureSettings.volumePreferences.percentageAlignment == .center
+        )
+
+        model.previewVolumeHUD()
+        #expect(dependencies.actions.volumeHUDPreviewCount == 1)
+
+        model.resetVolumeHUDAppearance()
+        await eventually { await store.savedConfigurations().count == 3 }
+        #expect(model.gestureSettings.volumePreferences.hudAppearance == .default)
+        #expect(model.gestureSettings.volumePreferences.percentageAlignment == .left)
+        #expect(dependencies.actions.volumeHUDAppearances.last == .default)
+        #expect(dependencies.actions.volumeHUDPercentageAlignments.last == .left)
     }
 
     @Test("Screenshot storage persists and is supplied to screenshot actions")
@@ -738,6 +834,8 @@ struct AppModelTests {
         model.requestAccessibilityPermission()
         model.requestInputMonitoringPermission()
         model.setLaunchAtLogin(true)
+        model.setHiddenFromDock(true)
+        await eventually { await dependencies.store.savedConfigurations().count == 1 }
 
         #expect(dependencies.permissions.requested == [.accessibility, .inputMonitoring])
         #expect(model.accessibilityGranted)
@@ -746,6 +844,13 @@ struct AppModelTests {
         #expect(model.screenRecordingGranted)
         #expect(dependencies.loginItem.isEnabled)
         #expect(model.launchAtLoginEnabled)
+        #expect(model.applicationPreferences.hideFromDock)
+        #expect(model.dockVisibilityRequiresRelaunch)
+        #expect(dependencies.applicationPresentation.preparedValues == [false, true])
+        #expect(await dependencies.store.savedConfigurations().last?.applicationPreferences.hideFromDock == true)
+
+        model.relaunchToApplyDockVisibility()
+        await eventually { dependencies.applicationPresentation.relaunchCount == 1 }
     }
 
     @Test("An unchanged permission refresh does not invalidate the settings UI")
@@ -847,6 +952,7 @@ struct AppModelTests {
         let actions = MockActionExecutor()
         let runtime = MockRuntimeController()
         let windowSwitcher = MockWindowSwitcher()
+        let applicationPresentation = MockApplicationPresentationController()
         let model = AppModel(
             repository: store,
             permissionService: permissions,
@@ -854,15 +960,18 @@ struct AppModelTests {
             actionExecutor: actions,
             runtime: runtime,
             windowSwitcher: windowSwitcher,
+            applicationPresentation: applicationPresentation,
             syntheticMarker: 42
         )
         return TestDependencies(
             model: model,
+            store: store,
             permissions: permissions,
             loginItem: loginItem,
             actions: actions,
             runtime: runtime,
-            windowSwitcher: windowSwitcher
+            windowSwitcher: windowSwitcher,
+            applicationPresentation: applicationPresentation
         )
     }
 
@@ -878,11 +987,13 @@ struct AppModelTests {
 @MainActor
 private struct TestDependencies {
     let model: AppModel
+    let store: MockConfigurationStore
     let permissions: MockPermissionService
     let loginItem: MockLoginItemService
     let actions: MockActionExecutor
     let runtime: MockRuntimeController
     let windowSwitcher: MockWindowSwitcher
+    let applicationPresentation: MockApplicationPresentationController
 }
 
 private actor MockConfigurationStore: ConfigurationStoring {
@@ -927,9 +1038,34 @@ private final class MockLoginItemService: LoginItemServicing {
 }
 
 @MainActor
+private final class MockApplicationPresentationController: ApplicationPresentationControlling {
+    var isHiddenFromDock = false
+    var preparedValues: [Bool] = []
+    var relaunchCount = 0
+
+    func prepareHiddenFromDock(_ hidden: Bool) {
+        preparedValues.append(hidden)
+    }
+
+    func relaunch() throws {
+        relaunchCount += 1
+    }
+}
+
+@MainActor
 private final class MockActionExecutor: ActionExecuting {
     var executed: [ActionDefinition] = []
     var screenshotStorages: [ScreenshotStorageSettings] = []
+    var volumeHUDAppearances: [OverlayAppearancePreferences] = []
+    var volumeHUDPercentageAlignments: [SoundBarPercentageAlignment] = []
+    var volumeHUDPreviewCount = 0
+    func updateVolumeHUDAppearance(_ preferences: OverlayAppearancePreferences) {
+        volumeHUDAppearances.append(preferences)
+    }
+    func updateVolumeHUDPercentageAlignment(_ alignment: SoundBarPercentageAlignment) {
+        volumeHUDPercentageAlignments.append(alignment)
+    }
+    func previewVolumeHUD() { volumeHUDPreviewCount += 1 }
     func execute(_ action: ActionDefinition, screenshotStorage: ScreenshotStorageSettings) async throws {
         executed.append(action)
         screenshotStorages.append(screenshotStorage)

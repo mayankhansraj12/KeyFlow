@@ -134,6 +134,24 @@ public enum ConfigurationMigrator {
             migrated.gestureSettings.volumePreferences.hudAppearance = migrated.overlayAppearance
             migrated.overlayAppearance = .default
             migrated.schemaVersion = 14
+        case 14:
+            // Schema 15 adds an optional custom progress hue. Existing preset
+            // accents remain unchanged when no custom color is stored.
+            migrated.schemaVersion = 15
+        case 15:
+            // Schema 16 persists whether KeyFlow runs as a Dock application or
+            // as a menu-bar utility. Existing installations remain visible.
+            migrated.schemaVersion = 16
+        case 16:
+            // Schema 17 narrows keyboard shortcuts to application launching.
+            // Legacy actions remain recoverable but fail closed until the user
+            // chooses an application in the new shortcut editor.
+            migrated.schemaVersion = 17
+        case 17:
+            // Schema 18 persists Sound Bar percentage alignment. Existing
+            // installations retain the established left-aligned presentation.
+            migrated.gestureSettings.volumePreferences.percentageAlignment = .left
+            migrated.schemaVersion = 18
         default:
             break
         }

@@ -17,4 +17,6 @@ KeyFlow operates locally on the Mac. It does not contain analytics, advertising,
 
 KeyFlow's diagnostics export includes versions, aggregate mapping counts, runtime state, and permission state. It deliberately excludes mapping names, triggers, action values, and typed text.
 
-The raw four-finger compatibility provider reads trackpad contact geometry locally. It does not record contacts to disk or transmit them. Window thumbnails remain in memory for the active switcher session and are discarded when it closes.
+The raw multi-finger compatibility provider reads trackpad contact geometry locally. It does not record contacts to disk or transmit them. Window thumbnails are never written to disk or transmitted. They are held in a bounded 32 MB in-memory cache, removed when their source window leaves the current catalog, and expire after at most 120 seconds without access.
+
+The app bundle declares why Screen Recording is requested through `NSScreenCaptureUsageDescription`. The bundled privacy manifest declares no tracking, tracking domains, or collected-data categories because KeyFlow has no analytics or network telemetry.

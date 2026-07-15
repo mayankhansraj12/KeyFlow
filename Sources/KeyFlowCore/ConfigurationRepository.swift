@@ -58,8 +58,14 @@ public actor ConfigurationRepository: ConfigurationStoring {
             return KeyFlowConfiguration()
         }
         do {
+            let storedSchemaVersion = try schemaVersion(at: fileURL)
             let configuration = try decodeConfiguration(at: fileURL)
             highestSavedRevision = configuration.revision
+            if storedSchemaVersion < KeyFlowConfiguration.currentSchemaVersion {
+                try persist(configuration)
+            } else {
+                try secureExistingStorage()
+            }
             return configuration
         } catch let error as ConfigurationMigrationError {
             throw error
@@ -67,21 +73,27 @@ public actor ConfigurationRepository: ConfigurationStoring {
             guard let recovered = try loadNewestValidBackup() else {
                 throw RepositoryError.noRecoverableConfiguration(error.localizedDescription)
             }
-            highestSavedRevision = recovered.revision
+            try fileManager.removeItem(at: fileURL)
+            try persist(recovered)
             return recovered
         }
     }
 
     public func save(_ configuration: KeyFlowConfiguration) async throws {
         guard configuration.revision >= highestSavedRevision else { return }
+        try persist(configuration)
+    }
+
+    private func persist(_ configuration: KeyFlowConfiguration) throws {
         let directory = fileURL.deletingLastPathComponent()
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try createPrivateDirectory(at: directory)
         try backUpCurrentConfigurationIfPresent()
 
         var current = configuration
         current.schemaVersion = KeyFlowConfiguration.currentSchemaVersion
         let data = try encoder.encode(current)
         try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+        try setPrivateFilePermissions(at: fileURL)
         highestSavedRevision = current.revision
         try pruneBackups()
     }
@@ -90,16 +102,28 @@ public actor ConfigurationRepository: ConfigurationStoring {
         try ConfigurationMigrator.decode(Data(contentsOf: url), using: decoder)
     }
 
+    private func schemaVersion(at url: URL) throws -> Int {
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+        guard
+            let dictionary = object as? [String: Any],
+            let schemaVersion = dictionary["schemaVersion"] as? Int
+        else {
+            throw RepositoryError.noRecoverableConfiguration("The schema version is missing or invalid.")
+        }
+        return schemaVersion
+    }
+
     private func backUpCurrentConfigurationIfPresent() throws {
         guard fileManager.fileExists(atPath: fileURL.path) else { return }
         let existing = try decodeConfiguration(at: fileURL)
-        try fileManager.createDirectory(at: backupsDirectoryURL, withIntermediateDirectories: true)
+        try createPrivateDirectory(at: backupsDirectoryURL)
         let name = String(format: "configuration-r%010d.json", existing.revision)
         let destination = backupsDirectoryURL.appendingPathComponent(name)
         if fileManager.fileExists(atPath: destination.path) {
             try fileManager.removeItem(at: destination)
         }
         try fileManager.copyItem(at: fileURL, to: destination)
+        try setPrivateFilePermissions(at: destination)
     }
 
     private func loadNewestValidBackup() throws -> KeyFlowConfiguration? {
@@ -129,5 +153,28 @@ public actor ConfigurationRepository: ConfigurationStoring {
         for expired in backups.dropFirst(backupLimit) {
             try fileManager.removeItem(at: expired)
         }
+    }
+
+    private func secureExistingStorage() throws {
+        try createPrivateDirectory(at: fileURL.deletingLastPathComponent())
+        try setPrivateFilePermissions(at: fileURL)
+        guard fileManager.fileExists(atPath: backupsDirectoryURL.path) else { return }
+        try createPrivateDirectory(at: backupsDirectoryURL)
+        for backup in try fileManager.contentsOfDirectory(
+            at: backupsDirectoryURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) where backup.pathExtension == "json" {
+            try setPrivateFilePermissions(at: backup)
+        }
+    }
+
+    private func createPrivateDirectory(at url: URL) throws {
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+    }
+
+    private func setPrivateFilePermissions(at url: URL) throws {
+        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 }

@@ -215,7 +215,7 @@ public struct Mapping: Identifiable, Codable, Hashable, Sendable {
         name: String,
         isEnabled: Bool = false,
         trigger: TriggerDefinition = .defaultKeyboard,
-        action: ActionDefinition = .init(kind: .openURL, value: "https://example.com"),
+        action: ActionDefinition = .init(kind: .launchApplication, value: ""),
         consumesKeyboardInput: Bool = true,
         createdAt: Date = .now,
         updatedAt: Date = .now
@@ -231,7 +231,11 @@ public struct Mapping: Identifiable, Codable, Hashable, Sendable {
     }
 
     public static func newMapping() -> Mapping {
-        Mapping(name: "New Shortcut")
+        Mapping(
+            name: "Open Application",
+            trigger: .init(kind: .keyboard),
+            action: .init(kind: .launchApplication, value: "")
+        )
     }
 }
 
@@ -339,11 +343,26 @@ public enum OverlayBackgroundColor: String, Codable, CaseIterable, Identifiable,
     }
 }
 
+public struct PersistedRGBAColor: Codable, Equatable, Sendable {
+    public var red: Double
+    public var green: Double
+    public var blue: Double
+    public var alpha: Double
+
+    public init(red: Double, green: Double, blue: Double, alpha: Double = 1) {
+        self.red = min(max(red, 0), 1)
+        self.green = min(max(green, 0), 1)
+        self.blue = min(max(blue, 0), 1)
+        self.alpha = min(max(alpha, 0), 1)
+    }
+}
+
 public struct OverlayAppearancePreferences: Codable, Equatable, Sendable {
     public var theme: OverlayTheme
     public var surfaceStyle: OverlaySurfaceStyle
     public var backgroundColor: OverlayBackgroundColor
     public var accent: WindowSwitcherAccent
+    public var customAccentColor: PersistedRGBAColor?
     public var backgroundOpacity: Double
     public var cornerRadius: Double
     public var showsBorder: Bool
@@ -353,6 +372,7 @@ public struct OverlayAppearancePreferences: Codable, Equatable, Sendable {
         surfaceStyle: OverlaySurfaceStyle = .frosted,
         backgroundColor: OverlayBackgroundColor = .system,
         accent: WindowSwitcherAccent = .system,
+        customAccentColor: PersistedRGBAColor? = nil,
         backgroundOpacity: Double = 0.96,
         cornerRadius: Double = 20,
         showsBorder: Bool = true
@@ -361,6 +381,7 @@ public struct OverlayAppearancePreferences: Codable, Equatable, Sendable {
         self.surfaceStyle = surfaceStyle
         self.backgroundColor = backgroundColor
         self.accent = accent
+        self.customAccentColor = customAccentColor
         self.backgroundOpacity = min(max(backgroundOpacity, 0.45), 1)
         self.cornerRadius = min(max(cornerRadius, 10), 30)
         self.showsBorder = showsBorder
@@ -373,6 +394,7 @@ public struct OverlayAppearancePreferences: Codable, Equatable, Sendable {
         case surfaceStyle
         case backgroundColor
         case accent
+        case customAccentColor
         case backgroundOpacity
         case cornerRadius
         case showsBorder
@@ -388,6 +410,7 @@ public struct OverlayAppearancePreferences: Codable, Equatable, Sendable {
             backgroundColor: try container.decodeIfPresent(OverlayBackgroundColor.self, forKey: .backgroundColor)
                 ?? defaults.backgroundColor,
             accent: try container.decodeIfPresent(WindowSwitcherAccent.self, forKey: .accent) ?? defaults.accent,
+            customAccentColor: try container.decodeIfPresent(PersistedRGBAColor.self, forKey: .customAccentColor),
             backgroundOpacity: try container.decodeIfPresent(Double.self, forKey: .backgroundOpacity)
                 ?? defaults.backgroundOpacity,
             cornerRadius: try container.decodeIfPresent(Double.self, forKey: .cornerRadius)
@@ -405,8 +428,8 @@ public enum WindowSwitcherWindowScope: String, Codable, CaseIterable, Identifiab
 
     public var displayName: String {
         switch self {
-        case .standardApplications: "Standard Apps"
-        case .allActiveWindows: "All Open Apps"
+        case .standardApplications: "Dock App Windows"
+        case .allActiveWindows: "All Open Windows"
         }
     }
 }
@@ -543,6 +566,22 @@ public enum VerticalGestureTrigger: String, Codable, CaseIterable, Identifiable,
     }
 }
 
+public enum SoundBarPercentageAlignment: String, Codable, CaseIterable, Identifiable, Sendable {
+    case left
+    case center
+    case right
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .left: "Left"
+        case .center: "Center"
+        case .right: "Right"
+        }
+    }
+}
+
 public struct VolumeAdjustmentPreferences: Codable, Equatable, Sendable {
     public static let allowedResponseMilliseconds = [0, 10, 20, 50, 100, 150, 200, 300, 400, 500]
     public static let allowedStepPercentages = [1, 2, 5]
@@ -551,17 +590,20 @@ public struct VolumeAdjustmentPreferences: Codable, Equatable, Sendable {
     public var responseMilliseconds: Int
     public var stepPercentage: Int
     public var hudAppearance: OverlayAppearancePreferences
+    public var percentageAlignment: SoundBarPercentageAlignment
 
     public init(
         speedMultiplier: Double = 1.25,
         responseMilliseconds: Int = 0,
         stepPercentage: Int = 2,
-        hudAppearance: OverlayAppearancePreferences = .default
+        hudAppearance: OverlayAppearancePreferences = .default,
+        percentageAlignment: SoundBarPercentageAlignment = .left
     ) {
         self.speedMultiplier = min(max(speedMultiplier, 0.5), 2.5)
         self.responseMilliseconds = Self.closestAllowedResponse(to: responseMilliseconds)
         self.stepPercentage = Self.allowedStepPercentages.contains(stepPercentage) ? stepPercentage : 2
         self.hudAppearance = hudAppearance
+        self.percentageAlignment = percentageAlignment
     }
 
     public static let `default` = VolumeAdjustmentPreferences()
@@ -575,6 +617,7 @@ public struct VolumeAdjustmentPreferences: Codable, Equatable, Sendable {
         case responseMilliseconds
         case stepPercentage
         case hudAppearance
+        case percentageAlignment
     }
 
     public init(from decoder: any Decoder) throws {
@@ -588,7 +631,11 @@ public struct VolumeAdjustmentPreferences: Codable, Equatable, Sendable {
             stepPercentage: try container.decodeIfPresent(Int.self, forKey: .stepPercentage)
                 ?? defaults.stepPercentage,
             hudAppearance: try container.decodeIfPresent(OverlayAppearancePreferences.self, forKey: .hudAppearance)
-                ?? defaults.hudAppearance
+                ?? defaults.hudAppearance,
+            percentageAlignment: try container.decodeIfPresent(
+                SoundBarPercentageAlignment.self,
+                forKey: .percentageAlignment
+            ) ?? defaults.percentageAlignment
         )
     }
 
@@ -804,13 +851,14 @@ public struct GestureSettings: Codable, Equatable, Sendable {
 }
 
 public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 14
+    public static let currentSchemaVersion = 18
 
     public var schemaVersion: Int
     public var revision: Int
     public var mappings: [Mapping]
     public var windowSwitcherPreferences: WindowSwitcherPreferences
     public var gestureSettings: GestureSettings
+    public var applicationPreferences: ApplicationPreferences
     public var overlayAppearance: OverlayAppearancePreferences
 
     public init(
@@ -819,6 +867,7 @@ public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
         mappings: [Mapping] = [],
         windowSwitcherPreferences: WindowSwitcherPreferences = .default,
         gestureSettings: GestureSettings = .default,
+        applicationPreferences: ApplicationPreferences = .default,
         overlayAppearance: OverlayAppearancePreferences = .default
     ) {
         self.schemaVersion = schemaVersion
@@ -826,6 +875,7 @@ public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
         self.mappings = mappings
         self.windowSwitcherPreferences = windowSwitcherPreferences
         self.gestureSettings = gestureSettings
+        self.applicationPreferences = applicationPreferences
         self.overlayAppearance = overlayAppearance
     }
 
@@ -835,6 +885,7 @@ public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
         case mappings
         case windowSwitcherPreferences
         case gestureSettings
+        case applicationPreferences
         case overlayAppearance
     }
 
@@ -847,6 +898,9 @@ public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
             try container.decodeIfPresent(WindowSwitcherPreferences.self, forKey: .windowSwitcherPreferences)
             ?? .default
         gestureSettings = try container.decodeIfPresent(GestureSettings.self, forKey: .gestureSettings) ?? .default
+        applicationPreferences =
+            try container.decodeIfPresent(ApplicationPreferences.self, forKey: .applicationPreferences)
+            ?? .default
         overlayAppearance =
             try container.decodeIfPresent(OverlayAppearancePreferences.self, forKey: .overlayAppearance)
             ?? .default
@@ -859,17 +913,30 @@ public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
         try container.encode(mappings, forKey: .mappings)
         try container.encode(windowSwitcherPreferences, forKey: .windowSwitcherPreferences)
         try container.encode(gestureSettings, forKey: .gestureSettings)
+        try container.encode(applicationPreferences, forKey: .applicationPreferences)
         if schemaVersion <= 13 {
             try container.encode(overlayAppearance, forKey: .overlayAppearance)
         }
     }
 }
 
+public struct ApplicationPreferences: Codable, Equatable, Sendable {
+    public var hideFromDock: Bool
+
+    public init(hideFromDock: Bool = false) {
+        self.hideFromDock = hideFromDock
+    }
+
+    public static let `default` = ApplicationPreferences()
+}
+
 public enum MappingValidationError: LocalizedError, Equatable, Sendable {
     case missingName
     case missingKeyCode
     case missingActionValue
+    case missingApplication
     case invalidURL
+    case keyboardShortcutRequiresApplication
     case windowSwitcherRequiresHorizontalSwipe
     case horizontalSwipeRequiresWindowSwitcher
     case unsupportedTrackpadGesture
@@ -880,7 +947,10 @@ public enum MappingValidationError: LocalizedError, Equatable, Sendable {
         case .missingName: "Give this mapping a name."
         case .missingKeyCode: "Record a keyboard shortcut."
         case .missingActionValue: "Enter a value for the selected action."
+        case .missingApplication: "Choose an application to open."
         case .invalidURL: "Enter a complete http or https URL."
+        case .keyboardShortcutRequiresApplication:
+            "Keyboard shortcuts can only open applications. Choose an application to continue."
         case .windowSwitcherRequiresHorizontalSwipe:
             "Interactive Window Switcher requires the Four-Finger Horizontal Swipe trigger."
         case .horizontalSwipeRequiresWindowSwitcher:
@@ -903,7 +973,12 @@ public enum MappingValidator {
             errors.append(.missingKeyCode)
         }
         let value = mapping.action.value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if mapping.action.kind.requiresValue && value.isEmpty {
+        if mapping.trigger.kind == .keyboard, mapping.action.kind != .launchApplication {
+            errors.append(.keyboardShortcutRequiresApplication)
+        }
+        if mapping.action.kind == .launchApplication, value.isEmpty {
+            errors.append(.missingApplication)
+        } else if mapping.action.kind.requiresValue && value.isEmpty {
             errors.append(.missingActionValue)
         }
         if mapping.action.kind == .openURL {

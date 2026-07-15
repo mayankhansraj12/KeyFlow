@@ -87,27 +87,23 @@ final class SystemWindowCatalog: WindowCataloging {
                 title: catalogTitle,
                 bounds: bounds
             )
-            let windowElement = resolvedWindow?.element
-            if let windowElement {
-                claimedWindows[processID, default: []].append(windowElement)
-            } else if application.activationPolicy == .regular {
-                // Regular apps are represented by their application fallback
-                // when an exact AX window cannot be resolved. Accepting every
-                // unmatched regular CG surface would reintroduce browser tabs,
-                // toolbars, and other child surfaces as duplicate windows.
-                return nil
-            }
+            // A WindowServer surface is not enough: apps also publish tabs,
+            // popovers, status items, toolbars, and short-lived render surfaces.
+            // Only a live, user-selectable Accessibility window may become a card.
+            guard let resolvedWindow else { return nil }
+            let windowElement = resolvedWindow.element
+            claimedWindows[processID, default: []].append(windowElement)
             let title =
-                windowElement.flatMap { nonEmpty(attributeString($0, kAXTitleAttribute as CFString)) }
+                nonEmpty(attributeString(windowElement, kAXTitleAttribute as CFString))
                 ?? catalogTitle
             let icon = applicationIcon(application) ?? NSWorkspace.shared.icon(for: .applicationBundle)
             return SwitchableWindow(
-                id: .window(windowID),
+                id: windowID,
                 windowID: windowID,
                 processID: processID,
                 title: title,
                 applicationName: applicationName,
-                bounds: resolvedWindow?.bounds ?? bounds,
+                bounds: resolvedWindow.bounds,
                 applicationIcon: icon,
                 applicationElement: applicationElement,
                 windowElement: windowElement,
@@ -115,50 +111,16 @@ final class SystemWindowCatalog: WindowCataloging {
             )
         }
 
-        guard scope == .allActiveWindows else { return windowEntries }
-        let representedProcesses = Set(windowEntries.map(\.processID))
-        let applicationEntries: [SwitchableWindow] = NSWorkspace.shared.runningApplications.compactMap {
-            application -> SwitchableWindow? in
-            let processID = application.processIdentifier
-            guard
-                !representedProcesses.contains(processID),
-                !application.isTerminated,
-                application.isFinishedLaunching,
-                WindowCatalogFilter.includesApplicationFallback(
-                    activationPolicy: application.activationPolicy,
-                    scope: scope
-                ),
-                let applicationName = nonEmpty(application.localizedName)
-            else { return nil }
-
-            let icon = applicationIcon(application) ?? NSWorkspace.shared.icon(for: .applicationBundle)
-            return SwitchableWindow(
-                id: .application(processID),
-                windowID: nil,
-                processID: processID,
-                title: applicationName,
-                applicationName: applicationName,
-                bounds: .zero,
-                applicationIcon: icon,
-                applicationElement: AXUIElementCreateApplication(processID),
-                windowElement: nil,
-                thumbnail: nil
-            )
-        }
-        return windowEntries + applicationEntries
+        return windowEntries
     }
 
     func activate(_ window: SwitchableWindow) throws {
-        guard let application = NSRunningApplication(processIdentifier: window.processID) else {
+        guard NSRunningApplication(processIdentifier: window.processID) != nil else {
             throw WindowCatalogError.applicationUnavailable
         }
 
-        guard let target = window.windowElement, let windowID = window.windowID else {
-            guard application.activate(options: [.activateAllWindows]) else {
-                throw WindowCatalogError.applicationUnavailable
-            }
-            return
-        }
+        let target = window.windowElement
+        let windowID = window.windowID
 
         // Use the exact AX window retained when the gesture began. Re-enumerating here and
         // matching by a mutable title or frame made release unreliable when a window moved,
@@ -207,6 +169,10 @@ final class SystemWindowCatalog: WindowCataloging {
         }
         let matches = unclaimed.compactMap { candidate -> (AXUIElement, CGRect, Double)? in
             guard
+                WindowCatalogFilter.includesAccessibilityWindow(
+                    role: attributeString(candidate, kAXRoleAttribute as CFString),
+                    subrole: attributeString(candidate, kAXSubroleAttribute as CFString)
+                ),
                 let candidateBounds = accessibilityBounds(candidate),
                 WindowGeometryMatcher.matches(accessibility: candidateBounds, windowServer: bounds)
             else { return nil }
@@ -278,23 +244,27 @@ enum WindowCatalogFilter {
         scope: WindowSwitcherWindowScope
     ) -> Bool {
         guard includesApplication(activationPolicy: activationPolicy, scope: scope) else { return false }
-        if activationPolicy == .regular { return layer == 0 }
-        guard scope == .allActiveWindows, isOnscreen, layer >= 0 else { return false }
+        guard layer == 0 else { return false }
 
-        // Dock tiles, Control Center panels (including the volume HUD),
-        // Notification Center, and other macOS shell surfaces are windows at
-        // the WindowServer level, but they are not user-switchable app windows.
-        // Finder and other normal Apple apps remain eligible through the
-        // regular-application branch above.
-        if bundleIdentifier?.hasPrefix("com.apple.") == true { return false }
-        return true
+        // These processes expose WindowServer surfaces but never represent a
+        // user-selectable application window. Keep the deny-list exact so
+        // normal Apple apps such as Finder and Safari remain eligible.
+        let shellBundleIdentifiers: Set<String> = [
+            "com.apple.controlcenter",
+            "com.apple.dock",
+            "com.apple.notificationcenterui",
+            "com.apple.systemuiserver",
+            "com.apple.WindowManager",
+        ]
+        guard let bundleIdentifier else { return true }
+        return !shellBundleIdentifiers.contains(bundleIdentifier)
     }
 
-    static func includesApplicationFallback(
-        activationPolicy: NSApplication.ActivationPolicy,
-        scope: WindowSwitcherWindowScope
-    ) -> Bool {
-        scope == .allActiveWindows && activationPolicy == .regular
+    static func includesAccessibilityWindow(role: String?, subrole: String?) -> Bool {
+        guard role == kAXWindowRole as String else { return false }
+        guard let subrole else { return true }
+        return subrole == kAXStandardWindowSubrole as String
+            || subrole == kAXDialogSubrole as String
     }
 }
 

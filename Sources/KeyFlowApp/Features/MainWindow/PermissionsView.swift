@@ -90,11 +90,27 @@ struct PermissionsView: View {
                     "Launch KeyFlow at login",
                     isOn: Binding(get: { model.launchAtLoginEnabled }, set: { model.setLaunchAtLogin($0) })
                 )
+                Toggle(
+                    "Hide KeyFlow from Dock",
+                    isOn: Binding(
+                        get: { model.applicationPreferences.hideFromDock },
+                        set: { model.setHiddenFromDock($0) }
+                    )
+                )
+                if model.dockVisibilityRequiresRelaunch {
+                    HStack {
+                        Label("Relaunch required to update Dock visibility", systemImage: "arrow.clockwise")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Relaunch KeyFlow") { model.relaunchToApplyDockVisibility() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                }
             } header: {
                 Text("Runtime")
             } footer: {
                 Text(
-                    "Launch at login works from the packaged KeyFlow.app build. The Swift Package debug executable is intended for development only."
+                    "When hidden from the Dock, KeyFlow remains available from its menu-bar item. Launch at login works from the packaged KeyFlow.app build."
                 )
             }
 

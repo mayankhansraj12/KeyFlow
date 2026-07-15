@@ -5,20 +5,15 @@ import Foundation
 import KeyFlowCore
 
 struct SwitchableWindow: Identifiable {
-    enum ID: Hashable {
-        case window(CGWindowID)
-        case application(pid_t)
-    }
-
-    let id: ID
-    let windowID: CGWindowID?
+    let id: CGWindowID
+    let windowID: CGWindowID
     let processID: pid_t
     let title: String
     let applicationName: String
     let bounds: CGRect
     let applicationIcon: NSImage
     let applicationElement: AXUIElement
-    let windowElement: AXUIElement?
+    let windowElement: AXUIElement
     var thumbnail: NSImage?
 }
 
@@ -64,10 +59,7 @@ final class WindowSwitcherModel: ObservableObject {
         var updatedWindows = windows
         var didUpdate = false
         for index in updatedWindows.indices {
-            guard
-                let windowID = updatedWindows[index].windowID,
-                let thumbnail = thumbnails[windowID]
-            else { continue }
+            guard let thumbnail = thumbnails[updatedWindows[index].windowID] else { continue }
             updatedWindows[index].thumbnail = thumbnail
             didUpdate = true
         }

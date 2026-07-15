@@ -19,17 +19,25 @@ extension OverlayAppearancePreferences {
         }
     }
 
-    var swiftUIAccentColor: Color { Color(accent) }
+    var swiftUIAccentColor: Color { Color(nsColor: appKitAccentColor) }
 
     var appKitAccentColor: NSColor {
-        switch accent {
-        case .system: .controlAccentColor
-        case .blue: .systemBlue
-        case .indigo: .systemIndigo
-        case .purple: .systemPurple
-        case .green: .systemGreen
-        case .orange: .systemOrange
-        case .pink: .systemPink
+        if let customAccentColor {
+            return NSColor(
+                srgbRed: customAccentColor.red,
+                green: customAccentColor.green,
+                blue: customAccentColor.blue,
+                alpha: customAccentColor.alpha
+            )
+        }
+        return switch accent {
+        case .system: NSColor.controlAccentColor
+        case .blue: NSColor.systemBlue
+        case .indigo: NSColor.systemIndigo
+        case .purple: NSColor.systemPurple
+        case .green: NSColor.systemGreen
+        case .orange: NSColor.systemOrange
+        case .pink: NSColor.systemPink
         }
     }
 

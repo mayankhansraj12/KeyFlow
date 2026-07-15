@@ -27,6 +27,7 @@ install -m 644 "$ROOT/Resources/Info.plist" "$CONTENTS/Info.plist"
 install -m 644 "$ROOT/Resources/KeyFlow.icns" "$CONTENTS/Resources/KeyFlow.icns"
 install -m 644 "$ROOT/Resources/PrivacyInfo.xcprivacy" "$CONTENTS/Resources/PrivacyInfo.xcprivacy"
 install -m 644 "$ROOT/Resources/ThirdPartyNotices.txt" "$CONTENTS/Resources/ThirdPartyNotices.txt"
+install -m 644 "$ROOT/LICENSE" "$CONTENTS/Resources/License.txt"
 
 if [[ -z "${CODE_SIGN_IDENTITY:-}" ]]; then
     LOCAL_KEYCHAIN="$($ROOT/Scripts/setup-local-signing.sh)"
