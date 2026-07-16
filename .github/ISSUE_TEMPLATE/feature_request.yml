@@ -1,0 +1,60 @@
+name: Feature request
+description: Propose a focused improvement to an existing KeyFlow workflow.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Explain the workflow and user value before proposing implementation.
+        Large architectural features should be discussed before development.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is difficult or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the user-facing interaction and expected result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Keyboard shortcuts
+        - Trackpad gestures
+        - Audio or media
+        - Screenshots
+        - Window switcher
+        - Appearance
+        - Permissions or onboarding
+        - Accessibility
+        - Developer experience
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and the product roadmap.
+          required: true
+        - label: This request describes one focused workflow.
+          required: true

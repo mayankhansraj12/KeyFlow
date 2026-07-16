@@ -1,5 +1,5 @@
 KeyFlow contains a window-focus compatibility implementation adapted from yabai:
-https://github.com/koekeishiya/yabai
+https://github.com/asmvik/yabai
 
 The MIT License (MIT)
 
@@ -22,3 +22,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Build tooling
+-------------
+
+The local DMG build installs ds_store and mac_alias as hash-pinned, build-time
+Python packages. They are not bundled in KeyFlow.app or its runtime DMG
+contents.
+
+ds_store: https://github.com/dmgbuild/ds_store
+mac_alias: https://github.com/dmgbuild/mac_alias
+
+Both are distributed under the MIT License. Their complete license texts are
+included in their source distributions and installed package metadata.

@@ -1,0 +1,105 @@
+name: Bug report
+description: Report reproducible behavior that does not work as expected.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve KeyFlow. Do not include typed text, private
+        screenshots, configuration files, action values, credentials, or
+        vulnerability details in a public issue.
+
+  - type: input
+    id: keyflow-version
+    attributes:
+      label: KeyFlow version
+      description: Find this in the app or DMG filename.
+      placeholder: 0.1.7 (8)
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: macOS 15.6
+    validations:
+      required: true
+
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: Mac architecture
+      options:
+        - Apple silicon
+        - Intel
+        - Unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Installation or launch
+        - Permissions
+        - Keyboard shortcuts
+        - Trackpad gestures
+        - Volume or media
+        - Screenshots
+        - Window switcher
+        - Menu bar or Dock behavior
+        - Configuration or recovery
+        - Performance
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal, numbered sequence.
+      placeholder: |
+        1. Open …
+        2. Enable …
+        3. Perform …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Additional context
+      description: |
+        Include only privacy-redacted diagnostics or non-sensitive context.
+        Never post screenshots containing private window content.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed private input, window content, and credentials.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

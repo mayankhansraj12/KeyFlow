@@ -11,6 +11,10 @@
 ## Source gate
 
 - Working tree reviewed; no `.local-signing`, `.env`, `.p8`, `.p12`, or credentials tracked.
+- README, documentation index, support policy, security policy, contribution
+  guide, code of conduct, issue forms, and license match the candidate.
+- GitHub description, topics, social preview, and public links match
+  `GITHUB_PRODUCTION_CONTROLS.md`.
 - Version/build numbers updated and unique.
 - Create a cryptographically signed annotated `v<CFBundleShortVersionString>` tag on the reviewed `main` commit and push both before building. The release preflight rejects a missing, unsigned, divergent, or unpushed tag.
 - `Scripts/validate.sh` passes.
@@ -25,8 +29,8 @@
 ## Build and distribution gate
 
 ```sh
-DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID)" \
-DEVELOPER_TEAM_ID="TEAMID1234" \
+DEVELOPER_ID_APPLICATION="Developer ID Application: Example Developer (TEAM_ID)" \
+DEVELOPER_TEAM_ID="TEAM_ID" \
 NOTARY_PROFILE="KeyFlow Notarization" \
 ./Scripts/release.sh
 ```
@@ -41,6 +45,8 @@ The script must complete all of these automatically:
 - Notarize and staple the DMG and pass Gatekeeper assessment.
 - Produce SHA-256 checksums.
 - Retain accepted JSON responses for both notarization submissions as release evidence.
+- Publish the DMG, ZIP, checksums, release notes, and known limitations through
+  GitHub Releases. Do not add generated release artifacts to Git.
 
 ## Manual release-candidate checks
 
