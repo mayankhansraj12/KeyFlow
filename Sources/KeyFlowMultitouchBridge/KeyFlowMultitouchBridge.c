@@ -64,6 +64,7 @@ static int32_t last_forwarded_active_count = 0;
 static int32_t last_forwarded_identifiers[32];
 static float last_forwarded_x[32];
 static float last_forwarded_y[32];
+static KFMTStatus last_start_status = KFMTStatusStartFailed;
 
 // MultitouchSupport can deliver substantially faster than the app can display or act on.
 // A 60 Hz ceiling preserves one update per display frame and prevents raw input from
@@ -199,10 +200,10 @@ static int contact_frame_callback(
     return 0;
 }
 
-bool KFMTIsAvailable(void) {
+KFMTStatus KFMTGetAvailabilityStatus(void) {
     void *handle = dlopen(framework_path, RTLD_LAZY | RTLD_LOCAL);
     if (handle == NULL) {
-        return false;
+        return KFMTStatusFrameworkUnavailable;
     }
     bool available =
         dlsym(handle, "MTDeviceCreateDefault") != NULL &&
@@ -210,11 +211,25 @@ bool KFMTIsAvailable(void) {
         dlsym(handle, "MTDeviceStart") != NULL &&
         dlsym(handle, "MTDeviceStop") != NULL;
     dlclose(handle);
-    return available;
+    return available ? KFMTStatusAvailable : KFMTStatusRequiredSymbolsUnavailable;
+}
+
+KFMTStatus KFMTGetLastStartStatus(void) {
+    pthread_mutex_lock(&state_lock);
+    KFMTStatus status = last_start_status;
+    pthread_mutex_unlock(&state_lock);
+    return status;
+}
+
+bool KFMTIsAvailable(void) {
+    return KFMTGetAvailabilityStatus() == KFMTStatusAvailable;
 }
 
 bool KFMTStart(KFMTFrameCallback callback, void *context) {
     if (callback == NULL) {
+        pthread_mutex_lock(&state_lock);
+        last_start_status = KFMTStatusInvalidCallback;
+        pthread_mutex_unlock(&state_lock);
         return false;
     }
 
@@ -225,6 +240,7 @@ bool KFMTStart(KFMTFrameCallback callback, void *context) {
         forwarding_gesture = false;
         last_forwarded_timestamp = 0;
         last_forwarded_active_count = 0;
+        last_start_status = KFMTStatusAvailable;
         pthread_mutex_unlock(&state_lock);
         return true;
     }
@@ -232,6 +248,9 @@ bool KFMTStart(KFMTFrameCallback callback, void *context) {
 
     void *handle = dlopen(framework_path, RTLD_LAZY | RTLD_LOCAL);
     if (handle == NULL) {
+        pthread_mutex_lock(&state_lock);
+        last_start_status = KFMTStatusFrameworkUnavailable;
+        pthread_mutex_unlock(&state_lock);
         return false;
     }
 
@@ -252,12 +271,18 @@ bool KFMTStart(KFMTFrameCallback callback, void *context) {
 
     if (!resolved) {
         dlclose(handle);
+        pthread_mutex_lock(&state_lock);
+        last_start_status = KFMTStatusRequiredSymbolsUnavailable;
+        pthread_mutex_unlock(&state_lock);
         return false;
     }
 
     MTDeviceRef created_device = create_device();
     if (created_device == NULL) {
         dlclose(handle);
+        pthread_mutex_lock(&state_lock);
+        last_start_status = KFMTStatusDefaultDeviceUnavailable;
+        pthread_mutex_unlock(&state_lock);
         return false;
     }
 
@@ -272,6 +297,7 @@ bool KFMTStart(KFMTFrameCallback callback, void *context) {
     unregister_callback = resolved_unregister;
     stop_device = resolved_stop;
     release_device = resolved_release;
+    last_start_status = KFMTStatusAvailable;
     pthread_mutex_unlock(&state_lock);
 
     register_callback(created_device, contact_frame_callback);

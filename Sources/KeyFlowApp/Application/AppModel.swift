@@ -720,8 +720,8 @@ final class AppModel: ObservableObject {
         switch multitouchStatus {
         case .starting: "starting"
         case .running: "running"
-        case .unavailable: "unavailable"
-        case .failed: "failed"
+        case let .unavailable(issue): "unavailable: \(issue.diagnosticsDescription)"
+        case let .failed(issue): "failed: \(issue.diagnosticsDescription)"
         }
     }
 }

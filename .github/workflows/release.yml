@@ -26,6 +26,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Import Developer ID certificate
         env:
@@ -35,7 +38,9 @@ jobs:
         run: |
           KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
           CERTIFICATE="$RUNNER_TEMP/developer-id.p12"
+          umask 077
           printf '%s' "$CERTIFICATE_BASE64" | base64 -D > "$CERTIFICATE"
+          chmod 600 "$CERTIFICATE"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
@@ -50,7 +55,9 @@ jobs:
           API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           API_KEY="$RUNNER_TEMP/AuthKey_$API_KEY_ID.p8"
+          umask 077
           printf '%s' "$API_KEY_P8" > "$API_KEY"
+          chmod 600 "$API_KEY"
           xcrun notarytool store-credentials "KeyFlow CI Notary" \
             --key "$API_KEY" \
             --key-id "$API_KEY_ID" \
@@ -59,6 +66,7 @@ jobs:
       - name: Build, sign, notarize, and staple
         env:
           DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+          DEVELOPER_TEAM_ID: ${{ secrets.DEVELOPER_TEAM_ID }}
           NOTARY_PROFILE: KeyFlow CI Notary
         run: ./Scripts/release.sh
 
@@ -70,6 +78,7 @@ jobs:
             release/*.dmg
             release/*.zip
             release/SHA256SUMS
+            release/notarization-*.json
           if-no-files-found: error
           retention-days: 30
 
@@ -86,3 +95,9 @@ jobs:
             ARGS+=(--prerelease)
           fi
           gh release create "${ARGS[@]}"
+
+      - name: Remove ephemeral signing material
+        if: ${{ always() }}
+        run: |
+          security delete-keychain "$RUNNER_TEMP/release.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP"/*.p12 "$RUNNER_TEMP"/*.p8

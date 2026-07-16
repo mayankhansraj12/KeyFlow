@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT="${0:A:h:h}"
 INFO_PLIST="$ROOT/Resources/Info.plist"
 PRIVACY_MANIFEST="$ROOT/Resources/PrivacyInfo.xcprivacy"
+RELEASE_POLICY="$ROOT/Resources/ReleasePolicy.plist"
 
 function fail() {
     print -u2 "Production audit failed: $1"
@@ -14,13 +15,21 @@ function fail() {
 for required in \
     "$INFO_PLIST" \
     "$PRIVACY_MANIFEST" \
+    "$RELEASE_POLICY" \
     "$ROOT/Resources/KeyFlow.entitlements" \
     "$ROOT/Resources/ThirdPartyNotices.txt" \
+    "$ROOT/docs/PRODUCTION_READINESS_PLAN.md" \
+    "$ROOT/docs/PRODUCTION_AUDIT_REPORT.md" \
+    "$ROOT/docs/GITHUB_PRODUCTION_CONTROLS.md" \
+    "$ROOT/docs/OPERATIONS_RUNBOOK.md" \
+    "$ROOT/docs/RELEASE_NOTES_0.1.7.md" \
+    "$ROOT/docs/SUPPORT.md" \
+    "$ROOT/docs/UPDATE_POLICY.md" \
     "$ROOT/LICENSE"; do
     [[ -s "$required" ]] || fail "missing or empty ${required#$ROOT/}"
 done
 
-plutil -lint "$INFO_PLIST" "$PRIVACY_MANIFEST" "$ROOT/Resources/KeyFlow.entitlements" >/dev/null
+plutil -lint "$INFO_PLIST" "$PRIVACY_MANIFEST" "$RELEASE_POLICY" "$ROOT/Resources/KeyFlow.entitlements" >/dev/null
 
 IDENTIFIER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST")"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
@@ -28,6 +37,8 @@ BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")"
 MINIMUM_OS="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$INFO_PLIST")"
 CATEGORY="$(/usr/libexec/PlistBuddy -c 'Print :LSApplicationCategoryType' "$INFO_PLIST")"
 SCREEN_CAPTURE_DESCRIPTION="$(/usr/libexec/PlistBuddy -c 'Print :NSScreenCaptureUsageDescription' "$INFO_PLIST")"
+PRIVACY_POLICY_URL="$(/usr/libexec/PlistBuddy -c 'Print :KeyFlowPrivacyPolicyURL' "$INFO_PLIST")"
+SUPPORT_URL="$(/usr/libexec/PlistBuddy -c 'Print :KeyFlowSupportURL' "$INFO_PLIST")"
 
 [[ "$IDENTIFIER" == "app.keyflow.desktop" ]] || fail "unexpected bundle identifier: $IDENTIFIER"
 [[ "$VERSION" =~ '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$' ]] || fail "invalid semantic version: $VERSION"
@@ -35,12 +46,23 @@ SCREEN_CAPTURE_DESCRIPTION="$(/usr/libexec/PlistBuddy -c 'Print :NSScreenCapture
 [[ "$MINIMUM_OS" == "15.0" ]] || fail "deployment target and Info.plist disagree: $MINIMUM_OS"
 [[ "$CATEGORY" == "public.app-category.utilities" ]] || fail "unexpected application category: $CATEGORY"
 [[ -n "$SCREEN_CAPTURE_DESCRIPTION" ]] || fail "NSScreenCaptureUsageDescription is empty"
+[[ "$PRIVACY_POLICY_URL" == https://* ]] || fail "privacy policy URL must use HTTPS"
+[[ "$SUPPORT_URL" == https://* ]] || fail "support URL must use HTTPS"
 
 TRACKING="$(/usr/libexec/PlistBuddy -c 'Print :NSPrivacyTracking' "$PRIVACY_MANIFEST")"
 [[ "$TRACKING" == "false" ]] || fail "privacy manifest unexpectedly enables tracking"
 /usr/libexec/PlistBuddy -c 'Print :NSPrivacyTrackingDomains' "$PRIVACY_MANIFEST" >/dev/null
 /usr/libexec/PlistBuddy -c 'Print :NSPrivacyCollectedDataTypes' "$PRIVACY_MANIFEST" >/dev/null
 /usr/libexec/PlistBuddy -c 'Print :NSPrivacyAccessedAPITypes' "$PRIVACY_MANIFEST" >/dev/null
+
+RELEASE_POLICY_SCHEMA="$(/usr/libexec/PlistBuddy -c 'Print :SchemaVersion' "$RELEASE_POLICY")"
+RELEASE_CHANNEL="$(/usr/libexec/PlistBuddy -c 'Print :ReleaseChannel' "$RELEASE_POLICY")"
+AUTOMATIC_UPDATES="$(/usr/libexec/PlistBuddy -c 'Print :AutomaticUpdatesEnabled' "$RELEASE_POLICY")"
+RAW_MULTITOUCH_STABILITY="$(/usr/libexec/PlistBuddy -c 'Print :RawMultitouchStability' "$RELEASE_POLICY")"
+[[ "$RELEASE_POLICY_SCHEMA" == "1" ]] || fail "unsupported release-policy schema: $RELEASE_POLICY_SCHEMA"
+[[ "$RELEASE_CHANNEL" == "manual-beta" ]] || fail "candidate must remain on the manual-beta channel"
+[[ "$AUTOMATIC_UPDATES" == "false" ]] || fail "automatic updates are not qualified"
+[[ "$RAW_MULTITOUCH_STABILITY" == "experimental" ]] || fail "raw multitouch must remain experimental"
 
 if rg -n '^import (AppKit|SwiftUI|ApplicationServices|CoreGraphics|ScreenCaptureKit|ServiceManagement)$' \
     "$ROOT/Sources/KeyFlowCore"; then
@@ -57,4 +79,7 @@ if git -C "$ROOT" ls-files | rg -q '(^|/)(\.DS_Store|\.env|\.local-signing)(/|$)
 fi
 
 git -C "$ROOT" diff --check
+for script in "$ROOT"/Scripts/*.sh; do
+    zsh -n "$script" || fail "invalid zsh syntax in ${script#$ROOT/}"
+done
 print "Production metadata audit passed (KeyFlow $VERSION build $BUILD, schema $SCHEMA)"

@@ -17,7 +17,16 @@ enum WindowThumbnailCacheValidator {
 }
 
 @MainActor
-final class WindowThumbnailProvider {
+protocol WindowThumbnailProviding: AnyObject {
+    func cachedThumbnails(for windows: [SwitchableWindow]) -> [CGWindowID: NSImage]
+    func thumbnails(
+        for windows: [SwitchableWindow],
+        onUpdate: (([CGWindowID: NSImage]) -> Void)?
+    ) async -> [CGWindowID: NSImage]
+}
+
+@MainActor
+final class WindowThumbnailProvider: WindowThumbnailProviding {
     private struct CacheEntry {
         let processID: pid_t
         let title: String
@@ -45,14 +54,32 @@ final class WindowThumbnailProvider {
     // The cards never render near full-window resolution. A 480 px longest edge remains
     // crisp at the largest card size while avoiding unnecessary ScreenCaptureKit scaling.
     private nonisolated static let maximumPixelLength: CGFloat = 480
-    private static let maximumCacheBytes = 32 * 1_024 * 1_024
-    private static let maximumCacheAge: Duration = .seconds(120)
+    private static let defaultMaximumCacheBytes = 32 * 1_024 * 1_024
+    private static let defaultMaximumCacheAge: Duration = .seconds(120)
     // A cached image is only the zero-latency first frame. Revalidate shortly
     // afterward so browser navigation and tab/window changes cannot remain stale.
-    private static let minimumRefreshInterval: Duration = .seconds(2)
+    private static let defaultMinimumRefreshInterval: Duration = .seconds(2)
 
+    private let maximumCacheBytes: Int
+    private let maximumCacheAge: Duration
+    private let minimumRefreshInterval: Duration
     private var cache: [CGWindowID: CacheEntry] = [:]
     private var cacheByteCost = 0
+    private var evictionTask: Task<Void, Never>?
+
+    init(
+        maximumCacheBytes: Int = WindowThumbnailProvider.defaultMaximumCacheBytes,
+        maximumCacheAge: Duration = WindowThumbnailProvider.defaultMaximumCacheAge,
+        minimumRefreshInterval: Duration = WindowThumbnailProvider.defaultMinimumRefreshInterval
+    ) {
+        self.maximumCacheBytes = max(1, maximumCacheBytes)
+        self.maximumCacheAge = max(.milliseconds(1), maximumCacheAge)
+        self.minimumRefreshInterval = max(.zero, minimumRefreshInterval)
+    }
+
+    deinit {
+        evictionTask?.cancel()
+    }
 
     func cachedThumbnails(for windows: [SwitchableWindow]) -> [CGWindowID: NSImage] {
         let now = ContinuousClock.now
@@ -73,6 +100,7 @@ final class WindowThumbnailProvider {
             cache[window.windowID] = entry
             result[window.windowID] = entry.image
         }
+        scheduleNextExpiration()
         return result
     }
 
@@ -80,6 +108,8 @@ final class WindowThumbnailProvider {
         for windows: [SwitchableWindow],
         onUpdate: (([CGWindowID: NSImage]) -> Void)? = nil
     ) async -> [CGWindowID: NSImage] {
+        let performance = KeyFlowPerformance.begin("RefreshThumbnails", using: KeyFlowPerformance.thumbnails)
+        defer { performance.end() }
         guard CGPreflightScreenCaptureAccess() else { return [:] }
         let now = ContinuousClock.now
         var result = cachedThumbnails(for: windows)
@@ -93,7 +123,7 @@ final class WindowThumbnailProvider {
                     window: window
                 )
             else { return true }
-            return now - entry.capturedAt >= Self.minimumRefreshInterval
+            return now - entry.capturedAt >= minimumRefreshInterval
         }
         guard !windowsNeedingRefresh.isEmpty else { return result }
 
@@ -128,7 +158,7 @@ final class WindowThumbnailProvider {
                         cgImage: capture.image,
                         size: NSSize(width: capture.image.width, height: capture.image.height)
                     )
-                    store(
+                    cacheThumbnail(
                         image,
                         byteCost: capture.image.bytesPerRow * capture.image.height,
                         windowID: capture.windowID,
@@ -180,7 +210,7 @@ final class WindowThumbnailProvider {
         )
     }
 
-    private func store(
+    func cacheThumbnail(
         _ image: NSImage,
         byteCost: Int,
         windowID: CGWindowID,
@@ -201,11 +231,12 @@ final class WindowThumbnailProvider {
         cache[windowID] = entry
         cacheByteCost += byteCost
         pruneCacheToBudget()
+        scheduleNextExpiration()
     }
 
     private func removeExpiredEntries(now: ContinuousClock.Instant) {
         let expiredIDs = cache.compactMap { windowID, entry in
-            now - entry.lastAccess > Self.maximumCacheAge ? windowID : nil
+            now - entry.lastAccess >= maximumCacheAge ? windowID : nil
         }
         for windowID in expiredIDs {
             if let entry = cache.removeValue(forKey: windowID) { cacheByteCost -= entry.byteCost }
@@ -221,11 +252,35 @@ final class WindowThumbnailProvider {
     }
 
     private func pruneCacheToBudget() {
-        while cacheByteCost > Self.maximumCacheBytes,
+        while cacheByteCost > maximumCacheBytes,
             let oldest = cache.min(by: { $0.value.lastAccess < $1.value.lastAccess })
         {
             cache.removeValue(forKey: oldest.key)
             cacheByteCost -= oldest.value.byteCost
         }
     }
+
+    private func scheduleNextExpiration() {
+        evictionTask?.cancel()
+        evictionTask = nil
+        guard let deadline = cache.values.map({ $0.lastAccess + maximumCacheAge }).min() else {
+            return
+        }
+        let now = ContinuousClock.now
+        let delay = now < deadline ? now.duration(to: deadline) : .zero
+        evictionTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.removeExpiredEntries(now: .now)
+            self.scheduleNextExpiration()
+        }
+    }
+
+    var cacheEntryCount: Int { cache.count }
+    var cachedWindowIDs: Set<CGWindowID> { Set(cache.keys) }
+    var cacheMemoryCost: Int { cacheByteCost }
 }

@@ -46,9 +46,9 @@ final class AppRuntimeController: RuntimeControlling {
 
     private lazy var gestureMonitor: GestureMonitor = {
         let monitor = GestureMonitor()
-        monitor.onGesture = { [weak self] kind in self?.handleGesture(kind) }
-        monitor.onVerticalGesture = { [weak self] event in self?.handleVerticalGesture(event) }
-        monitor.onHorizontalGesture = { [weak self] event in self?.handleHorizontalGesture(event) }
+        monitor.onGesture = { [weak self] kind in self?.receiveGesture(kind) }
+        monitor.onVerticalGesture = { [weak self] event in self?.receiveVerticalGesture(event) }
+        monitor.onHorizontalGesture = { [weak self] event in self?.receiveHorizontalGesture(event) }
         monitor.onProviderStatus = { [weak self] status in self?.onMultitouchStatus?(status) }
         monitor.onContactCountChanged = { [weak self] count in self?.onContactCountChanged?(count) }
         monitor.onGestureContactCountChanged = { [weak self] count in
@@ -95,6 +95,10 @@ final class AppRuntimeController: RuntimeControlling {
     func setPaused(_ paused: Bool) {
         self.paused = paused
         if paused {
+            if let activeWindowSwitcherMapping {
+                onInteractiveWindowSwitcher?(activeWindowSwitcherMapping, .horizontalCancelled)
+                self.activeWindowSwitcherMapping = nil
+            }
             volumeGestureAccumulator.reset()
             activeVolumeMapping = nil
         }
@@ -102,14 +106,14 @@ final class AppRuntimeController: RuntimeControlling {
         gestureMonitor.setPaused(paused)
     }
 
-    private func handleGesture(_ kind: TriggerKind) {
+    func receiveGesture(_ kind: TriggerKind) {
         guard !paused else { return }
         if let mapping = snapshot.matchGesture(kind) {
             onMapping?(mapping)
         }
     }
 
-    private func handleVerticalGesture(_ event: GestureRecognitionEvent) {
+    func receiveVerticalGesture(_ event: GestureRecognitionEvent) {
         guard !paused else { return }
         if case .verticalEnded = event {
             if let activeVolumeMapping { onContinuousVolumeEnded?(activeVolumeMapping) }
@@ -132,7 +136,7 @@ final class AppRuntimeController: RuntimeControlling {
         }
     }
 
-    private func handleHorizontalGesture(_ event: GestureRecognitionEvent) {
+    func receiveHorizontalGesture(_ event: GestureRecognitionEvent) {
         guard !paused else { return }
         switch event {
         case .horizontalBegan:

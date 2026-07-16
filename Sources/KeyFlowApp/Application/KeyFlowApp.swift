@@ -46,6 +46,13 @@ private struct KeyFlowMenu: View {
         )
         Text(engineStatusSummary)
         Divider()
+        if let supportURL = KeyFlowExternalLinks.supportURL {
+            Link("Support…", destination: supportURL)
+        }
+        if let privacyURL = KeyFlowExternalLinks.privacyPolicyURL {
+            Link("Privacy Policy…", destination: privacyURL)
+        }
+        Divider()
         Button("Quit KeyFlow") { NSApp.terminate(nil) }
     }
 
@@ -67,5 +74,19 @@ private struct KeyFlowMenu: View {
         case .stopped: "Keyboard engine stopped"
         case .failed: "Keyboard engine failed"
         }
+    }
+}
+
+enum KeyFlowExternalLinks {
+    static var supportURL: URL? { bundleURL(forKey: "KeyFlowSupportURL") }
+    static var privacyPolicyURL: URL? { bundleURL(forKey: "KeyFlowPrivacyPolicyURL") }
+
+    private static func bundleURL(forKey key: String) -> URL? {
+        guard
+            let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+            let url = URL(string: value),
+            url.scheme == "https"
+        else { return nil }
+        return url
     }
 }

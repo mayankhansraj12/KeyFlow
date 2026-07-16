@@ -23,7 +23,23 @@ enum SystemAudioError: LocalizedError {
 }
 
 @MainActor
-enum SystemAudioController {
+protocol AudioControlling: AnyObject {
+    func adjustVolume(up: Bool, stepCount: Int, stepPercentage: Int) throws -> Float32
+    func toggleMute() throws -> (isMuted: Bool, volume: Float32)
+}
+
+@MainActor
+protocol CoreAudioAccessing: AnyObject {
+    func defaultOutputDevice() throws -> AudioObjectID
+    func validateVolumeControl(on device: AudioObjectID) throws
+    func setVolume(_ volume: Float32, on device: AudioObjectID) throws
+    func currentVolume(on device: AudioObjectID) throws -> Float32
+    func currentMuteState(on device: AudioObjectID) throws -> Bool?
+    func setMuted(_ muted: Bool, on device: AudioObjectID) throws
+}
+
+@MainActor
+final class SystemAudioController: AudioControlling {
     private struct ContinuousSession {
         let device: AudioObjectID
         var volume: Float32
@@ -31,35 +47,39 @@ enum SystemAudioController {
         var lastAdjustment: ContinuousClock.Instant
     }
 
-    private static let sessionTimeout: Duration = .milliseconds(250)
-    private static var continuousSession: ContinuousSession?
+    private let hardware: any CoreAudioAccessing
+    private let sessionTimeout: Duration
+    private let now: () -> ContinuousClock.Instant
+    private var continuousSession: ContinuousSession?
 
-    @discardableResult
-    static func increaseVolume() throws -> Float32 {
-        try adjustVolume(up: true, stepCount: 1, stepPercentage: 2)
+    init(
+        hardware: any CoreAudioAccessing = SystemCoreAudioAccess(),
+        sessionTimeout: Duration = .milliseconds(250),
+        now: @escaping () -> ContinuousClock.Instant = { .now }
+    ) {
+        self.hardware = hardware
+        self.sessionTimeout = max(.zero, sessionTimeout)
+        self.now = now
     }
 
-    @discardableResult
-    static func decreaseVolume() throws -> Float32 {
-        try adjustVolume(up: false, stepCount: 1, stepPercentage: 2)
-    }
-
-    static func adjustVolume(up: Bool, stepCount: Int, stepPercentage: Int) throws -> Float32 {
+    func adjustVolume(up: Bool, stepCount: Int, stepPercentage: Int) throws -> Float32 {
+        let performance = KeyFlowPerformance.begin("AdjustVolume", using: KeyFlowPerformance.audio)
+        defer { performance.end() }
         guard stepCount > 0 else { return continuousSession?.volume ?? 0 }
-        let now = ContinuousClock.now
+        let instant = now()
         var session: ContinuousSession
         if let cached = continuousSession,
-            now - cached.lastAdjustment <= sessionTimeout
+            instant - cached.lastAdjustment <= sessionTimeout
         {
             session = cached
         } else {
-            let device = try defaultOutputDevice()
-            try validateVolumeControl(on: device)
+            let device = try hardware.defaultOutputDevice()
+            try hardware.validateVolumeControl(on: device)
             session = ContinuousSession(
                 device: device,
-                volume: try currentVolume(on: device),
-                isMuted: try currentMuteState(on: device),
-                lastAdjustment: now
+                volume: try hardware.currentVolume(on: device),
+                isMuted: try hardware.currentMuteState(on: device),
+                lastAdjustment: instant
             )
         }
 
@@ -67,44 +87,35 @@ enum SystemAudioController {
         let signedStep = (up ? percentage : -percentage) * Float32(stepCount)
         let adjustedVolume = min(1, max(0, session.volume + signedStep))
         if adjustedVolume != session.volume {
-            try setVolume(adjustedVolume, on: session.device)
+            try hardware.setVolume(adjustedVolume, on: session.device)
             session.volume = adjustedVolume
         }
         if up, session.isMuted == true {
-            try setMuted(false, on: session.device)
+            try hardware.setMuted(false, on: session.device)
             session.isMuted = false
         }
-        session.lastAdjustment = now
+        session.lastAdjustment = instant
         continuousSession = session
         return session.volume
     }
 
-    static func toggleMute() throws -> (isMuted: Bool, volume: Float32) {
+    func toggleMute() throws -> (isMuted: Bool, volume: Float32) {
+        let performance = KeyFlowPerformance.begin("ToggleMute", using: KeyFlowPerformance.audio)
+        defer { performance.end() }
         continuousSession = nil
-        let device = try defaultOutputDevice()
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyMute,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        guard AudioObjectHasProperty(device, &address) else { throw SystemAudioError.muteUnavailable }
-
-        var isSettable = DarwinBoolean(false)
-        guard AudioObjectIsPropertySettable(device, &address, &isSettable) == noErr, isSettable.boolValue else {
+        let device = try hardware.defaultOutputDevice()
+        guard let isMuted = try hardware.currentMuteState(on: device) else {
             throw SystemAudioError.muteUnavailable
         }
-
-        var muted: UInt32 = 0
-        var size = UInt32(MemoryLayout<UInt32>.size)
-        var status = AudioObjectGetPropertyData(device, &address, 0, nil, &size, &muted)
-        guard status == noErr else { throw SystemAudioError.operationFailed(status) }
-        muted = muted == 0 ? 1 : 0
-        status = AudioObjectSetPropertyData(device, &address, 0, nil, size, &muted)
-        guard status == noErr else { throw SystemAudioError.operationFailed(status) }
-        return (muted != 0, try currentVolume(on: device))
+        let updatedState = !isMuted
+        try hardware.setMuted(updatedState, on: device)
+        return (updatedState, try hardware.currentVolume(on: device))
     }
+}
 
-    private static func validateVolumeControl(on device: AudioObjectID) throws {
+@MainActor
+final class SystemCoreAudioAccess: CoreAudioAccessing {
+    func validateVolumeControl(on device: AudioObjectID) throws {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
             mScope: kAudioDevicePropertyScopeOutput,
@@ -118,7 +129,7 @@ enum SystemAudioController {
         }
     }
 
-    private static func setVolume(_ requestedVolume: Float32, on device: AudioObjectID) throws {
+    func setVolume(_ requestedVolume: Float32, on device: AudioObjectID) throws {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
             mScope: kAudioDevicePropertyScopeOutput,
@@ -130,7 +141,7 @@ enum SystemAudioController {
         guard status == noErr else { throw SystemAudioError.operationFailed(status) }
     }
 
-    private static func currentVolume(on device: AudioObjectID) throws -> Float32 {
+    func currentVolume(on device: AudioObjectID) throws -> Float32 {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
             mScope: kAudioDevicePropertyScopeOutput,
@@ -144,7 +155,7 @@ enum SystemAudioController {
         return volume
     }
 
-    private static func currentMuteState(on device: AudioObjectID) throws -> Bool? {
+    func currentMuteState(on device: AudioObjectID) throws -> Bool? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyMute,
             mScope: kAudioDevicePropertyScopeOutput,
@@ -158,20 +169,24 @@ enum SystemAudioController {
         return muted != 0
     }
 
-    private static func setMuted(_ muted: Bool, on device: AudioObjectID) throws {
+    func setMuted(_ muted: Bool, on device: AudioObjectID) throws {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyMute,
             mScope: kAudioDevicePropertyScopeOutput,
             mElement: kAudioObjectPropertyElementMain
         )
-        guard AudioObjectHasProperty(device, &address) else { return }
+        guard AudioObjectHasProperty(device, &address) else { throw SystemAudioError.muteUnavailable }
+        var isSettable = DarwinBoolean(false)
+        guard AudioObjectIsPropertySettable(device, &address, &isSettable) == noErr, isSettable.boolValue else {
+            throw SystemAudioError.muteUnavailable
+        }
         var value: UInt32 = muted ? 1 : 0
         let size = UInt32(MemoryLayout<UInt32>.size)
         let status = AudioObjectSetPropertyData(device, &address, 0, nil, size, &value)
         guard status == noErr else { throw SystemAudioError.operationFailed(status) }
     }
 
-    private static func defaultOutputDevice() throws -> AudioObjectID {
+    func defaultOutputDevice() throws -> AudioObjectID {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,

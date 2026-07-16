@@ -32,6 +32,10 @@
     <string>KeyFlow captures previews of your open windows for the interactive window switcher. Window previews are processed on this Mac and are not transmitted.</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 KeyFlow contributors.</string>
+    <key>KeyFlowPrivacyPolicyURL</key>
+    <string>https://github.com/mayankhansraj12/KeyFlow/blob/main/docs/PRIVACY.md</string>
+    <key>KeyFlowSupportURL</key>
+    <string>https://github.com/mayankhansraj12/KeyFlow/issues</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>

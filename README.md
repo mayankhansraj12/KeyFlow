@@ -64,11 +64,12 @@ The release pipeline builds a universal binary, signs with Developer ID, submits
 ```sh
 ./Scripts/store-notarization-credentials.sh "KeyFlow Notarization" "you@example.com" "TEAMID"
 DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID)" \
+DEVELOPER_TEAM_ID="TEAMID1234" \
 NOTARY_PROFILE="KeyFlow Notarization" \
 ./Scripts/release.sh
 ```
 
-Release credentials must be supplied through the keychain or protected CI secrets and must never be committed. Automatic updates remain a separate product milestone.
+Release credentials must be supplied through the keychain or protected CI secrets and must never be committed. This candidate is explicitly a manually updated beta; see the [update policy](docs/UPDATE_POLICY.md) for the signed broad-release architecture and gates.
 
 ## License
 
@@ -111,3 +112,7 @@ KeyFlowWindowServerBridge
 5. Typed action graphs and the XPC script runner.
 
 See the [architecture](docs/ARCHITECTURE.md), [release checklist](docs/RELEASE_CHECKLIST.md), [multitouch policy](docs/MULTITOUCH_COMPATIBILITY.md), and [product plan](docs/PRODUCT_PLAN.md) for the remaining gates.
+
+Production-candidate work is tracked in the [production readiness plan](docs/PRODUCTION_READINESS_PLAN.md) and its [evidence-based audit report](docs/PRODUCTION_AUDIT_REPORT.md).
+
+Beta support and privacy details are available in [support](docs/SUPPORT.md) and [privacy](docs/PRIVACY.md); the menu-bar item opens their public HTTPS locations.

@@ -110,7 +110,7 @@ struct PermissionsView: View {
                 Text("Runtime")
             } footer: {
                 Text(
-                    "When hidden from the Dock, KeyFlow remains available from its menu-bar item. Launch at login works from the packaged KeyFlow.app build."
+                    "Raw multitouch is experimental and fails open: keyboard shortcuts remain available if its private macOS provider is unavailable. When hidden from the Dock, KeyFlow remains available from its menu-bar item."
                 )
             }
 
@@ -152,8 +152,8 @@ struct PermissionsView: View {
         switch model.multitouchStatus {
         case .starting: "Starting"
         case .running: "Running"
-        case .unavailable: "Unavailable on this Mac"
-        case .failed: "Could not start"
+        case let .unavailable(issue): "Unavailable — \(issue.userFacingDescription)"
+        case let .failed(issue): "Could not start — \(issue.userFacingDescription)"
         }
     }
 

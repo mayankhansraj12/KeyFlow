@@ -1,0 +1,8 @@
+# Production-sensitive changes require review from the repository owner.
+* @mayankhansraj12
+
+/.github/ @mayankhansraj12
+/Scripts/ @mayankhansraj12
+/Resources/ @mayankhansraj12
+/Sources/KeyFlowMultitouchBridge/ @mayankhansraj12
+/Sources/KeyFlowWindowServerBridge/ @mayankhansraj12

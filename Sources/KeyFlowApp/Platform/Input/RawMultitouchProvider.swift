@@ -1,6 +1,93 @@
 import Foundation
 import KeyFlowMultitouchBridge
 
+enum MultitouchProviderIssue: Equatable, Sendable {
+    case disabledByCompatibilityPolicy(String)
+    case privateFrameworkUnavailable
+    case requiredSymbolsUnavailable
+    case defaultDeviceUnavailable
+    case invalidCallback
+    case startFailed
+
+    var userFacingDescription: String {
+        switch self {
+        case let .disabledByCompatibilityPolicy(reason): reason
+        case .privateFrameworkUnavailable: "Private multitouch framework unavailable"
+        case .requiredSymbolsUnavailable: "Required multitouch APIs unavailable"
+        case .defaultDeviceUnavailable: "No compatible trackpad found"
+        case .invalidCallback: "Multitouch callback rejected"
+        case .startFailed: "Multitouch provider could not start"
+        }
+    }
+
+    var diagnosticsDescription: String {
+        switch self {
+        case let .disabledByCompatibilityPolicy(reason): "disabled by compatibility policy: \(reason)"
+        case .privateFrameworkUnavailable: "private framework unavailable"
+        case .requiredSymbolsUnavailable: "required symbols unavailable"
+        case .defaultDeviceUnavailable: "default device unavailable"
+        case .invalidCallback: "invalid callback"
+        case .startFailed: "start failed"
+        }
+    }
+}
+
+struct MultitouchCompatibilityContext: Sendable {
+    let operatingSystemVersion: OperatingSystemVersion
+    let operatingSystemBuild: String
+    let forceDisabled: Bool
+
+    static var current: Self {
+        Self(
+            operatingSystemVersion: ProcessInfo.processInfo.operatingSystemVersion,
+            operatingSystemBuild: SystemVersionMetadata.productBuildVersion,
+            forceDisabled: ProcessInfo.processInfo.environment["KEYFLOW_DISABLE_RAW_MULTITOUCH"] == "1"
+        )
+    }
+}
+
+enum MultitouchCompatibilityDecision: Equatable, Sendable {
+    case allowed
+    case disabled(String)
+}
+
+enum MultitouchCompatibilityPolicy {
+    static let minimumSupportedMajorVersion = 15
+
+    // Add an affected build or prefix here to stop the private provider in the
+    // next signed app build while leaving keyboard input fully operational.
+    static let blockedOperatingSystemBuildPrefixes: Set<String> = []
+
+    static func evaluate(
+        _ context: MultitouchCompatibilityContext,
+        blockedBuildPrefixes: Set<String> = blockedOperatingSystemBuildPrefixes
+    ) -> MultitouchCompatibilityDecision {
+        if context.forceDisabled {
+            return .disabled("disabled by KEYFLOW_DISABLE_RAW_MULTITOUCH")
+        }
+        if context.operatingSystemVersion.majorVersion < minimumSupportedMajorVersion {
+            return .disabled("macOS \(minimumSupportedMajorVersion) or later is required")
+        }
+        if blockedBuildPrefixes.contains(where: context.operatingSystemBuild.hasPrefix) {
+            return .disabled("macOS build \(context.operatingSystemBuild) is blocked")
+        }
+        return .allowed
+    }
+}
+
+private enum SystemVersionMetadata {
+    static let productBuildVersion: String = {
+        let url = URL(fileURLWithPath: "/System/Library/CoreServices/SystemVersion.plist")
+        guard
+            let data = try? Data(contentsOf: url),
+            let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+            let values = plist as? [String: Any],
+            let build = values["ProductBuildVersion"] as? String
+        else { return "unknown" }
+        return build
+    }()
+}
+
 struct RawTouchPoint: Sendable {
     let identifier: Int32
     let state: Int32
@@ -22,11 +109,23 @@ final class RawMultitouchProvider: @unchecked Sendable {
         self.onFrame = onFrame
     }
 
-    var isAvailable: Bool { KFMTIsAvailable() }
+    var availabilityIssue: MultitouchProviderIssue? {
+        switch MultitouchCompatibilityPolicy.evaluate(.current) {
+        case .allowed: break
+        case let .disabled(reason): return .disabledByCompatibilityPolicy(reason)
+        }
+        return Self.issue(for: KFMTGetAvailabilityStatus())
+    }
+
+    var isAvailable: Bool { availabilityIssue == nil }
 
     func start() -> Bool {
         frameGate.reset()
         return KFMTStart(rawMultitouchCallback, Unmanaged.passUnretained(self).toOpaque())
+    }
+
+    var lastStartIssue: MultitouchProviderIssue? {
+        Self.issue(for: KFMTGetLastStartStatus())
     }
 
     func stop() {
@@ -63,6 +162,17 @@ final class RawMultitouchProvider: @unchecked Sendable {
             }
         }
         onFrame(RawTouchFrame(points: copied, timestamp: timestamp))
+    }
+
+    private static func issue(for status: KFMTStatus) -> MultitouchProviderIssue? {
+        switch status {
+        case KFMTStatus(KFMTStatusAvailable): nil
+        case KFMTStatus(KFMTStatusInvalidCallback): .invalidCallback
+        case KFMTStatus(KFMTStatusFrameworkUnavailable): .privateFrameworkUnavailable
+        case KFMTStatus(KFMTStatusRequiredSymbolsUnavailable): .requiredSymbolsUnavailable
+        case KFMTStatus(KFMTStatusDefaultDeviceUnavailable): .defaultDeviceUnavailable
+        default: .startFailed
+        }
     }
 }
 

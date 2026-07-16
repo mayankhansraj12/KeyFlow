@@ -22,12 +22,28 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Show toolchain
         run: swift --version
 
       - name: Validate sources and tests
         run: ./Scripts/validate.sh
+
+      - name: Install pinned automation audit tools
+        run: |
+          ./Scripts/install-audit-tools.sh "$RUNNER_TEMP/audit-tools"
+          echo "$RUNNER_TEMP/audit-tools" >> "$GITHUB_PATH"
+
+      - name: Validate GitHub Actions workflows
+        run: actionlint
+
+      - name: Scan source and complete Git history for credentials
+        run: |
+          gitleaks dir --redact --no-banner .
+          gitleaks git --redact --no-banner .
 
       - name: Run AddressSanitizer tests
         run: swift test --sanitize=address
@@ -49,6 +65,9 @@ jobs:
 
       - name: Verify application bundle
         run: ./Scripts/verify-app.sh
+
+      - name: Qualify ZIP and DMG packaging round trip
+        run: ./Scripts/qualify-local-package.sh
 
       - name: Archive CI artifact
         run: ditto -c -k --keepParent dist/KeyFlow.app KeyFlow-ci.zip

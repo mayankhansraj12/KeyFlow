@@ -26,6 +26,7 @@ install -m 755 "$EXECUTABLE" "$CONTENTS/MacOS/KeyFlowApp"
 install -m 644 "$ROOT/Resources/Info.plist" "$CONTENTS/Info.plist"
 install -m 644 "$ROOT/Resources/KeyFlow.icns" "$CONTENTS/Resources/KeyFlow.icns"
 install -m 644 "$ROOT/Resources/PrivacyInfo.xcprivacy" "$CONTENTS/Resources/PrivacyInfo.xcprivacy"
+install -m 644 "$ROOT/Resources/ReleasePolicy.plist" "$CONTENTS/Resources/ReleasePolicy.plist"
 install -m 644 "$ROOT/Resources/ThirdPartyNotices.txt" "$CONTENTS/Resources/ThirdPartyNotices.txt"
 install -m 644 "$ROOT/LICENSE" "$CONTENTS/Resources/License.txt"
 
@@ -50,5 +51,6 @@ codesign \
 codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 plutil -lint "$CONTENTS/Info.plist"
 plutil -lint "$CONTENTS/Resources/PrivacyInfo.xcprivacy"
+plutil -lint "$CONTENTS/Resources/ReleasePolicy.plist"
 
 print "Built $APP_DIR"

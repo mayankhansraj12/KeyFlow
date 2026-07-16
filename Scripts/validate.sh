@@ -15,6 +15,7 @@ done
 
 plutil -lint Resources/Info.plist
 plutil -lint Resources/PrivacyInfo.xcprivacy
+plutil -lint Resources/ReleasePolicy.plist
 plutil -lint Resources/KeyFlow.entitlements
 Scripts/audit-production.sh
 

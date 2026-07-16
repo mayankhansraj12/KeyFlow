@@ -28,6 +28,8 @@ enum WindowCatalogError: LocalizedError {
 @MainActor
 final class SystemWindowCatalog: WindowCataloging {
     func availableWindows(scope: WindowSwitcherWindowScope) -> [SwitchableWindow] {
+        let performance = KeyFlowPerformance.begin("EnumerateWindows", using: KeyFlowPerformance.windows)
+        defer { performance.end() }
         guard
             let rawWindows = CGWindowListCopyWindowInfo(
                 [.optionAll, .excludeDesktopElements],
@@ -115,6 +117,8 @@ final class SystemWindowCatalog: WindowCataloging {
     }
 
     func activate(_ window: SwitchableWindow) throws {
+        let performance = KeyFlowPerformance.begin("ActivateWindow", using: KeyFlowPerformance.windows)
+        defer { performance.end() }
         guard NSRunningApplication(processIdentifier: window.processID) != nil else {
             throw WindowCatalogError.applicationUnavailable
         }

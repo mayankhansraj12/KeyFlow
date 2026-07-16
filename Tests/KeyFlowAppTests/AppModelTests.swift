@@ -1,5 +1,7 @@
 import AppKit
+import ApplicationServices
 import Combine
+import CoreAudio
 import CoreGraphics
 import Foundation
 import KeyFlowCore
@@ -49,6 +51,40 @@ struct AppModelTests {
         #expect(!forward(2))
         #expect(forward(0))
         #expect(!forward(0))
+    }
+
+    @Test("Raw multitouch compatibility policy fails closed without disabling the app")
+    func rawMultitouchCompatibilityPolicy() {
+        let supported = MultitouchCompatibilityContext(
+            operatingSystemVersion: .init(majorVersion: 15, minorVersion: 0, patchVersion: 0),
+            operatingSystemBuild: "24A100",
+            forceDisabled: false
+        )
+        #expect(MultitouchCompatibilityPolicy.evaluate(supported) == .allowed)
+
+        let unsupported = MultitouchCompatibilityContext(
+            operatingSystemVersion: .init(majorVersion: 14, minorVersion: 7, patchVersion: 0),
+            operatingSystemBuild: "23H100",
+            forceDisabled: false
+        )
+        #expect(
+            MultitouchCompatibilityPolicy.evaluate(unsupported)
+                == .disabled("macOS 15 or later is required")
+        )
+
+        let forcedOff = MultitouchCompatibilityContext(
+            operatingSystemVersion: .init(majorVersion: 15, minorVersion: 0, patchVersion: 0),
+            operatingSystemBuild: "24A100",
+            forceDisabled: true
+        )
+        #expect(
+            MultitouchCompatibilityPolicy.evaluate(forcedOff)
+                == .disabled("disabled by KEYFLOW_DISABLE_RAW_MULTITOUCH")
+        )
+        #expect(
+            MultitouchCompatibilityPolicy.evaluate(supported, blockedBuildPrefixes: ["24A"])
+                == .disabled("macOS build 24A100 is blocked")
+        )
     }
 
     @Test("Three-finger tap and click mappings preserve macOS swipe events")
@@ -294,6 +330,71 @@ struct AppModelTests {
                 window: window
             )
         )
+    }
+
+    @Test("Window thumbnail cache expires without a later cache read")
+    @MainActor
+    func windowThumbnailCacheExpiresOnDeadline() async throws {
+        let provider = WindowThumbnailProvider(maximumCacheAge: .milliseconds(25))
+        provider.cacheThumbnail(
+            NSImage(size: NSSize(width: 4, height: 4)),
+            byteCost: 64,
+            windowID: 41,
+            processID: 12,
+            title: "Private window",
+            bounds: CGRect(x: 0, y: 0, width: 100, height: 80)
+        )
+
+        #expect(provider.cacheEntryCount == 1)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(provider.cacheEntryCount == 0)
+        #expect(provider.cacheMemoryCost == 0)
+    }
+
+    @Test("Window thumbnail cache enforces its memory budget")
+    @MainActor
+    func windowThumbnailCacheEnforcesMemoryBudget() async throws {
+        let provider = WindowThumbnailProvider(maximumCacheBytes: 100)
+        let image = NSImage(size: NSSize(width: 4, height: 4))
+        provider.cacheThumbnail(
+            image,
+            byteCost: 60,
+            windowID: 51,
+            processID: 12,
+            title: "First",
+            bounds: CGRect(x: 0, y: 0, width: 100, height: 80)
+        )
+        try await Task.sleep(for: .milliseconds(2))
+        provider.cacheThumbnail(
+            image,
+            byteCost: 60,
+            windowID: 52,
+            processID: 12,
+            title: "Second",
+            bounds: CGRect(x: 0, y: 0, width: 100, height: 80)
+        )
+
+        #expect(provider.cachedWindowIDs == [52])
+        #expect(provider.cacheMemoryCost == 60)
+    }
+
+    @Test("Window thumbnail cache removes windows absent from the current catalog")
+    @MainActor
+    func windowThumbnailCacheRemovesClosedWindows() {
+        let provider = WindowThumbnailProvider()
+        provider.cacheThumbnail(
+            NSImage(size: NSSize(width: 4, height: 4)),
+            byteCost: 64,
+            windowID: 61,
+            processID: 12,
+            title: "Closed",
+            bounds: CGRect(x: 0, y: 0, width: 100, height: 80)
+        )
+
+        #expect(provider.cacheEntryCount == 1)
+        #expect(provider.cachedThumbnails(for: []).isEmpty)
+        #expect(provider.cacheEntryCount == 0)
+        #expect(provider.cacheMemoryCost == 0)
     }
 
     @Test("Window switcher grid wraps after five cards and centers incomplete rows")
@@ -867,6 +968,89 @@ struct AppModelTests {
         _ = observation
     }
 
+    @Test("Permission service aggregates native grant state and routes requests")
+    func permissionServiceRoutesNativeOperations() {
+        let system = MockPermissionSystemAccess()
+        system.accessibility = true
+        system.inputMonitoring = true
+        system.postEvent = true
+        system.screenRecording = false
+        system.requestInputResult = true
+        system.requestScreenResult = false
+        let service = SystemPermissionService(system: system)
+
+        #expect(
+            service.currentStatus()
+                == PermissionStatus(
+                    accessibilityGranted: true,
+                    inputMonitoringGranted: true,
+                    postEventGranted: true,
+                    screenRecordingGranted: false
+                ))
+
+        service.request(.accessibility)
+        service.request(.inputMonitoring)
+        service.request(.screenRecording)
+
+        #expect(system.accessibilityRequestCount == 1)
+        #expect(system.postEventRequestCount == 1)
+        #expect(system.inputRequestCount == 1)
+        #expect(system.screenRequestCount == 1)
+        #expect(system.openedURLs.count == 1)
+        #expect(system.openedURLs.first?.absoluteString.contains("Privacy_ScreenCapture") == true)
+    }
+
+    @Test("Permission settings fall back to the general privacy pane")
+    func permissionSettingsUseFallbackURL() {
+        let system = MockPermissionSystemAccess()
+        system.openResults = [false, true]
+        let service = SystemPermissionService(system: system)
+
+        service.openSettings(for: .inputMonitoring)
+
+        #expect(system.openedURLs.count == 2)
+        #expect(system.openedURLs[0].absoluteString.contains("Privacy_ListenEvent"))
+        #expect(system.openedURLs[1].absoluteString.contains("PrivacySecurity"))
+    }
+
+    @Test("Permission reset is scoped to the app and surfaces tccutil failure")
+    func permissionResetSurfacesFailure() async {
+        let system = MockPermissionSystemAccess()
+        system.resetResult = (1, "not authorized")
+        let service = SystemPermissionService(system: system)
+
+        await #expect(throws: PermissionServiceError.self) {
+            try await service.resetRegistration(for: .accessibility)
+        }
+        #expect(system.resetRequests.count == 1)
+        #expect(system.resetRequests.first?.service == "Accessibility")
+        #expect(system.resetRequests.first?.bundleIdentifier == "app.keyflow.tests")
+    }
+
+    @Test("Permission service reveals the exact running application bundle")
+    func permissionServiceRevealsApplication() {
+        let system = MockPermissionSystemAccess()
+        let service = SystemPermissionService(system: system)
+
+        service.revealApplicationInFinder()
+
+        #expect(system.revealedURLs == [system.applicationURL])
+    }
+
+    @Test("Login item service delegates registration and unregistration")
+    func loginItemServiceDelegatesStateChanges() throws {
+        let registration = MockLoginItemRegistration()
+        let service = SystemLoginItemService(registration: registration)
+
+        #expect(!service.isEnabled)
+        try service.setEnabled(true)
+        #expect(service.isEnabled)
+        try service.setEnabled(false)
+        #expect(!service.isEnabled)
+        #expect(registration.registerCount == 1)
+        #expect(registration.unregisterCount == 1)
+    }
+
     @Test("Action executor rejects malformed URLs without opening anything")
     func invalidURLAction() async {
         let executor = ActionExecutor(syntheticMarker: 42)
@@ -889,6 +1073,186 @@ struct AppModelTests {
                 screenshotStorage: storage
             )
         }
+    }
+
+    @Test("Screenshot directory waiting is event-driven and cancellable")
+    func screenshotDirectoryMonitorReceivesOneChange() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("KeyFlow-DirectoryMonitor-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let monitor = DirectoryChangeMonitor()
+        let waiter = Task {
+            try await monitor.waitForChange(in: directory, timeout: .seconds(2))
+        }
+
+        try await Task.sleep(for: .milliseconds(30))
+        let file = directory.appendingPathComponent("capture.png")
+        let created = FileManager.default.createFile(atPath: file.path, contents: Data([0x01]))
+        #expect(created)
+        try await waiter.value
+    }
+
+    @Test("Screenshot directory waiting times out without polling")
+    func screenshotDirectoryMonitorTimesOut() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("KeyFlow-DirectoryTimeout-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        await #expect(throws: DirectoryChangeMonitorError.self) {
+            try await DirectoryChangeMonitor().waitForChange(
+                in: directory,
+                timeout: .milliseconds(25)
+            )
+        }
+    }
+
+    @Test("Input and switcher policies stay within a deterministic hot-path budget")
+    func hotPathPolicyBudget() {
+        let iterations = 50_000
+        var gate = RawTouchFrameGate()
+        var accumulator = VerticalVolumeAccumulator()
+        var navigation = WindowSwitcherNavigationResolver()
+        var checksum = 0
+        let start = ContinuousClock.now
+
+        for index in 0..<iterations {
+            if gate.shouldForward(activeContactCount: index.isMultiple(of: 2) ? 4 : 0) {
+                checksum += 1
+            }
+            checksum +=
+                accumulator.process(
+                    .verticalChanged(fingerCount: 4, deltaY: index.isMultiple(of: 2) ? 0.01 : -0.01)
+                ).count
+            checksum += navigation.index(
+                translationX: Double(index % 20) / 100,
+                translationY: Double(index % 15) / 100,
+                itemCount: 25,
+                initialIndex: 12,
+                speed: 1.25
+            )
+        }
+
+        let elapsed = ContinuousClock.now - start
+        #expect(checksum > 0)
+        #expect(elapsed < .seconds(2))
+    }
+
+    @Test("Continuous audio fast path does not rediscover hardware")
+    func continuousAudioFastPathBudget() throws {
+        let hardware = MockCoreAudioAccess(volume: 0.5, isMuted: false)
+        let instant = ContinuousClock.now
+        let controller = SystemAudioController(hardware: hardware, now: { instant })
+        let start = ContinuousClock.now
+
+        for index in 0..<10_000 {
+            _ = try controller.adjustVolume(
+                up: index.isMultiple(of: 2),
+                stepCount: 1,
+                stepPercentage: 1
+            )
+        }
+
+        #expect(hardware.defaultDeviceReads == 1)
+        #expect(hardware.volumeReads == 1)
+        #expect(ContinuousClock.now - start < .seconds(2))
+    }
+
+    @Test("Audio controller reuses its hot session and unmutes on volume up")
+    func audioControllerReusesSessionAndUnmutes() throws {
+        let hardware = MockCoreAudioAccess(volume: 0.94, isMuted: true)
+        let controller = SystemAudioController(hardware: hardware)
+
+        let first = try controller.adjustVolume(up: true, stepCount: 2, stepPercentage: 5)
+        let second = try controller.adjustVolume(up: false, stepCount: 1, stepPercentage: 2)
+
+        #expect(first == 1)
+        #expect(abs(second - 0.98) < 0.0001)
+        #expect(hardware.defaultDeviceReads == 1)
+        #expect(hardware.volumeReads == 1)
+        #expect(hardware.volumeWrites == [1, 0.98])
+        #expect(hardware.muteWrites == [false])
+    }
+
+    @Test("Audio controller starts a new session after its latency cache expires")
+    func audioControllerExpiresSession() throws {
+        let hardware = MockCoreAudioAccess(volume: 0.5, isMuted: false)
+        var instant = ContinuousClock.now
+        let controller = SystemAudioController(
+            hardware: hardware,
+            sessionTimeout: .milliseconds(250),
+            now: { instant }
+        )
+
+        _ = try controller.adjustVolume(up: true, stepCount: 1, stepPercentage: 2)
+        instant += .milliseconds(300)
+        hardware.volume = 0.25
+        _ = try controller.adjustVolume(up: true, stepCount: 1, stepPercentage: 2)
+
+        #expect(hardware.defaultDeviceReads == 2)
+        #expect(hardware.volumeReads == 2)
+        #expect(hardware.volumeWrites == [0.52, 0.27])
+    }
+
+    @Test("Audio controller reports unsupported mute instead of guessing")
+    func audioControllerRejectsMissingMuteControl() {
+        let hardware = MockCoreAudioAccess(volume: 0.5, isMuted: nil)
+        let controller = SystemAudioController(hardware: hardware)
+
+        #expect(throws: SystemAudioError.self) {
+            try controller.toggleMute()
+        }
+        #expect(hardware.muteWrites.isEmpty)
+    }
+
+    @Test("Action executor publishes injected audio and media results exactly once")
+    func actionExecutorRoutesAudioAndMedia() async throws {
+        let audio = MockAudioController()
+        let media = MockMediaKeyController()
+        let hud = MockVolumeHUDController()
+        let executor = ActionExecutor(
+            syntheticMarker: 42,
+            audioController: audio,
+            mediaKeyController: media,
+            volumeHUD: hud
+        )
+
+        try executor.executeContinuousVolume(
+            .init(kind: .volumeUp, value: ""),
+            stepCount: 3,
+            stepPercentage: 5
+        )
+        try await executor.execute(.init(kind: .toggleMute, value: ""))
+        try await executor.execute(.init(kind: .playPause, value: ""))
+
+        #expect(audio.adjustments.count == 1)
+        #expect(audio.adjustments.first?.up == true)
+        #expect(audio.adjustments.first?.stepCount == 3)
+        #expect(audio.adjustments.first?.stepPercentage == 5)
+        #expect(audio.toggleCount == 1)
+        #expect(media.pressCount == 1)
+        #expect(hud.prepareCount == 1)
+        #expect(hud.levels.count == 2)
+        #expect(abs((hud.levels.first ?? 0) - 0.72) < 0.0001)
+        #expect(hud.levels.last == 0)
+    }
+
+    @Test("Action executor surfaces media-key posting failure")
+    func actionExecutorReportsMediaFailure() async {
+        let media = MockMediaKeyController()
+        media.succeeds = false
+        let executor = ActionExecutor(
+            syntheticMarker: 42,
+            audioController: MockAudioController(),
+            mediaKeyController: media,
+            volumeHUD: MockVolumeHUDController()
+        )
+
+        await #expect(throws: ActionExecutionError.self) {
+            try await executor.execute(.init(kind: .playPause, value: ""))
+        }
+        #expect(media.pressCount == 1)
     }
 
     @Test("Diagnostics report contains aggregate state but no mapping data")
@@ -942,6 +1306,140 @@ struct AppModelTests {
         #expect(dependencies.windowSwitcher.updates == [CGSize(width: -0.14, height: -0.1)])
         #expect(dependencies.windowSwitcher.finishes == [CGSize(width: -0.14, height: -0.1)])
         #expect(dependencies.model.activities.first?.mappingName == "Switch windows")
+    }
+
+    @Test("Runtime routes discrete and continuous gestures exactly once")
+    func runtimeRoutesGestureActions() {
+        let runtime = AppRuntimeController(syntheticMarker: 77)
+        let gestureSettings = GestureSettings(
+            volumeAdjustment: .init(isEnabled: true, trigger: .fourFinger),
+            mute: .init(isEnabled: true, trigger: .fiveFingerTap),
+            interactiveWindowSwitcherEnabled: true
+        )
+        runtime.update(snapshot: RuntimeSnapshot(configuration: .init(gestureSettings: gestureSettings)))
+        var discrete: [ActionKind] = []
+        var volumeSteps: [Int] = []
+        var volumeEndCount = 0
+        runtime.onMapping = { discrete.append($0.action.kind) }
+        runtime.onContinuousVolume = { _, steps in volumeSteps.append(steps) }
+        runtime.onContinuousVolumeEnded = { _ in volumeEndCount += 1 }
+
+        runtime.receiveGesture(.fiveFingerTap)
+        runtime.receiveVerticalGesture(.verticalChanged(fingerCount: 4, deltaY: 0.3))
+        runtime.receiveVerticalGesture(.verticalEnded)
+        runtime.receiveVerticalGesture(.verticalEnded)
+
+        #expect(discrete == [.toggleMute])
+        #expect(volumeSteps.count == 1)
+        #expect((volumeSteps.first ?? 0) > 0)
+        #expect(volumeEndCount == 1)
+    }
+
+    @Test("Pausing cancels one active switcher session and blocks later input")
+    func runtimePauseCancelsInteractiveGesture() {
+        let runtime = AppRuntimeController(syntheticMarker: 78)
+        let settings = GestureSettings(interactiveWindowSwitcherEnabled: true)
+        runtime.update(snapshot: RuntimeSnapshot(configuration: .init(gestureSettings: settings)))
+        var events: [GestureRecognitionEvent] = []
+        runtime.onInteractiveWindowSwitcher = { _, event in events.append(event) }
+
+        runtime.receiveHorizontalGesture(.horizontalBegan(translationX: 0.06, translationY: 0))
+        runtime.receiveHorizontalGesture(.horizontalChanged(translationX: 0.12, translationY: 0.05))
+        runtime.setPaused(true)
+        runtime.receiveHorizontalGesture(.horizontalEnded(translationX: 0.12, translationY: 0.05))
+        runtime.receiveGesture(.fourFingerTap)
+
+        #expect(events.count == 3)
+        #expect(events[0] == .horizontalBegan(translationX: 0.06, translationY: 0))
+        #expect(events[1] == .horizontalChanged(translationX: 0.12, translationY: 0.05))
+        #expect(events[2] == .horizontalCancelled)
+    }
+
+    @Test("Window switcher controller presents, navigates, activates once, and closes")
+    func windowSwitcherControllerLifecycle() async throws {
+        let windows = (1...7).map { makeTestWindow(id: CGWindowID($0)) }
+        let catalog = MockWindowCatalog(windows: windows)
+        let thumbnails = MockWindowThumbnailProvider()
+        let presenter = MockWindowSwitcherPresenter()
+        let controller = WindowSwitcherController(
+            catalog: catalog,
+            thumbnails: thumbnails,
+            presenter: presenter
+        )
+        var preferences = WindowSwitcherPreferences.default
+        preferences.cardSize = .large
+        preferences.navigationSpeed = 2.5
+        controller.update(preferences: preferences)
+        controller.setEnabled(true)
+
+        try controller.begin(translationX: 0.02, translationY: 0)
+        await eventually { !thumbnails.captureRequests.isEmpty }
+        controller.update(translationX: -0.3, translationY: 0.15)
+        try controller.finish(translationX: -0.3, translationY: 0.15)
+
+        #expect(catalog.requestedScopes == [preferences.windowScope])
+        #expect(presenter.shows.count == 1)
+        #expect(presenter.shows.first?.windowCount == windows.count)
+        #expect(presenter.shows.first?.cardSize == .large)
+        #expect(presenter.hideCount == 1)
+        #expect(catalog.activated.count == 1)
+        #expect(Set(thumbnails.captureRequests[0]) == Set(windows.map(\.windowID)))
+        #expect(thumbnails.captureRequests[0].count == windows.count)
+    }
+
+    @Test("Disabled or cancelled switcher never activates a window")
+    func windowSwitcherControllerDisabledAndCancelled() throws {
+        let catalog = MockWindowCatalog(windows: [makeTestWindow(id: 70)])
+        let presenter = MockWindowSwitcherPresenter()
+        let controller = WindowSwitcherController(
+            catalog: catalog,
+            thumbnails: MockWindowThumbnailProvider(),
+            presenter: presenter
+        )
+
+        try controller.begin(translationX: 0, translationY: 0)
+        #expect(catalog.requestedScopes.isEmpty)
+        #expect(presenter.shows.isEmpty)
+
+        controller.setEnabled(true)
+        try controller.begin(translationX: 0, translationY: 0)
+        controller.cancel()
+
+        #expect(presenter.hideCount == 1)
+        #expect(catalog.activated.isEmpty)
+    }
+
+    @Test("Window switcher reports an empty catalog without showing an overlay")
+    func windowSwitcherControllerRejectsEmptyCatalog() {
+        let presenter = MockWindowSwitcherPresenter()
+        let controller = WindowSwitcherController(
+            catalog: MockWindowCatalog(windows: []),
+            thumbnails: MockWindowThumbnailProvider(),
+            presenter: presenter
+        )
+        controller.setEnabled(true)
+
+        #expect(throws: WindowCatalogError.self) {
+            try controller.begin(translationX: 0, translationY: 0)
+        }
+        #expect(presenter.shows.isEmpty)
+        #expect(presenter.hideCount == 0)
+    }
+
+    private func makeTestWindow(id: CGWindowID) -> SwitchableWindow {
+        let application = AXUIElementCreateApplication(getpid())
+        return SwitchableWindow(
+            id: id,
+            windowID: id,
+            processID: getpid(),
+            title: "Window \(id)",
+            applicationName: "Tests",
+            bounds: CGRect(x: 0, y: 0, width: 800, height: 600),
+            applicationIcon: NSImage(size: NSSize(width: 32, height: 32)),
+            applicationElement: application,
+            windowElement: application,
+            thumbnail: nil
+        )
     }
 
     private func makeDependencies(
@@ -1011,6 +1509,211 @@ private actor MockConfigurationStore: ConfigurationStoring {
     }
 
     func savedConfigurations() -> [KeyFlowConfiguration] { saves }
+}
+
+@MainActor
+private final class MockCoreAudioAccess: CoreAudioAccessing {
+    let device: AudioObjectID = 7
+    var volume: Float32
+    var isMuted: Bool?
+    var defaultDeviceReads = 0
+    var volumeReads = 0
+    var volumeWrites: [Float32] = []
+    var muteWrites: [Bool] = []
+
+    init(volume: Float32, isMuted: Bool?) {
+        self.volume = volume
+        self.isMuted = isMuted
+    }
+
+    func defaultOutputDevice() throws -> AudioObjectID {
+        defaultDeviceReads += 1
+        return device
+    }
+
+    func validateVolumeControl(on _: AudioObjectID) throws {}
+
+    func setVolume(_ volume: Float32, on _: AudioObjectID) throws {
+        self.volume = volume
+        volumeWrites.append(volume)
+    }
+
+    func currentVolume(on _: AudioObjectID) throws -> Float32 {
+        volumeReads += 1
+        return volume
+    }
+
+    func currentMuteState(on _: AudioObjectID) throws -> Bool? { isMuted }
+
+    func setMuted(_ muted: Bool, on _: AudioObjectID) throws {
+        isMuted = muted
+        muteWrites.append(muted)
+    }
+}
+
+@MainActor
+private final class MockAudioController: AudioControlling {
+    struct Adjustment {
+        let up: Bool
+        let stepCount: Int
+        let stepPercentage: Int
+    }
+
+    var adjustments: [Adjustment] = []
+    var toggleCount = 0
+
+    func adjustVolume(up: Bool, stepCount: Int, stepPercentage: Int) throws -> Float32 {
+        adjustments.append(.init(up: up, stepCount: stepCount, stepPercentage: stepPercentage))
+        return 0.72
+    }
+
+    func toggleMute() throws -> (isMuted: Bool, volume: Float32) {
+        toggleCount += 1
+        return (true, 0.72)
+    }
+}
+
+@MainActor
+private final class MockMediaKeyController: MediaKeyControlling {
+    var succeeds = true
+    var pressCount = 0
+
+    func pressPlayPause() -> Bool {
+        pressCount += 1
+        return succeeds
+    }
+}
+
+@MainActor
+private final class MockVolumeHUDController: VolumeHUDControlling {
+    var prepareCount = 0
+    var levels: [Double] = []
+
+    func prepare() { prepareCount += 1 }
+    func updateAppearance(_: OverlayAppearancePreferences) {}
+    func updatePercentageAlignment(_: SoundBarPercentageAlignment) {}
+    func show(level: Double) { levels.append(level) }
+}
+
+@MainActor
+private final class MockPermissionSystemAccess: PermissionSystemAccessing {
+    var bundleIdentifier = "app.keyflow.tests"
+    var applicationURL = URL(fileURLWithPath: "/Applications/KeyFlow.app")
+    var accessibility = false
+    var inputMonitoring = false
+    var postEvent = false
+    var screenRecording = false
+    var requestInputResult = false
+    var requestPostResult = false
+    var requestScreenResult = false
+    var accessibilityRequestCount = 0
+    var inputRequestCount = 0
+    var postEventRequestCount = 0
+    var screenRequestCount = 0
+    var openResults: [Bool] = []
+    var openedURLs: [URL] = []
+    var revealedURLs: [URL] = []
+    var resetResult: (status: Int32, error: String) = (0, "")
+    var resetRequests: [(service: String, bundleIdentifier: String)] = []
+
+    func accessibilityGranted() -> Bool { accessibility }
+    func inputMonitoringGranted() -> Bool { inputMonitoring }
+    func postEventGranted() -> Bool { postEvent }
+    func screenRecordingGranted() -> Bool { screenRecording }
+    func requestAccessibility() { accessibilityRequestCount += 1 }
+    func requestInputMonitoring() -> Bool {
+        inputRequestCount += 1
+        return requestInputResult
+    }
+    func requestPostEvent() -> Bool {
+        postEventRequestCount += 1
+        return requestPostResult
+    }
+    func requestScreenRecording() -> Bool {
+        screenRequestCount += 1
+        return requestScreenResult
+    }
+    func reset(service: String, bundleIdentifier: String) async -> (status: Int32, error: String) {
+        resetRequests.append((service, bundleIdentifier))
+        return resetResult
+    }
+    func open(_ url: URL) -> Bool {
+        openedURLs.append(url)
+        return openResults.isEmpty ? true : openResults.removeFirst()
+    }
+    func revealInFinder(_ url: URL) { revealedURLs.append(url) }
+}
+
+@MainActor
+private final class MockLoginItemRegistration: LoginItemRegistration {
+    var isEnabled = false
+    var registerCount = 0
+    var unregisterCount = 0
+
+    func register() throws {
+        registerCount += 1
+        isEnabled = true
+    }
+
+    func unregister() throws {
+        unregisterCount += 1
+        isEnabled = false
+    }
+}
+
+@MainActor
+private final class MockWindowCatalog: WindowCataloging {
+    let windows: [SwitchableWindow]
+    var requestedScopes: [WindowSwitcherWindowScope] = []
+    var activated: [CGWindowID] = []
+
+    init(windows: [SwitchableWindow]) {
+        self.windows = windows
+    }
+
+    func availableWindows(scope: WindowSwitcherWindowScope) -> [SwitchableWindow] {
+        requestedScopes.append(scope)
+        return windows
+    }
+
+    func activate(_ window: SwitchableWindow) throws {
+        activated.append(window.windowID)
+    }
+}
+
+@MainActor
+private final class MockWindowThumbnailProvider: WindowThumbnailProviding {
+    var cached: [CGWindowID: NSImage] = [:]
+    var captureRequests: [[CGWindowID]] = []
+    var captured: [CGWindowID: NSImage] = [:]
+
+    func cachedThumbnails(for _: [SwitchableWindow]) -> [CGWindowID: NSImage] { cached }
+
+    func thumbnails(
+        for windows: [SwitchableWindow],
+        onUpdate: (([CGWindowID: NSImage]) -> Void)?
+    ) async -> [CGWindowID: NSImage] {
+        captureRequests.append(windows.map(\.windowID))
+        onUpdate?(captured)
+        return captured
+    }
+}
+
+@MainActor
+private final class MockWindowSwitcherPresenter: WindowSwitcherPresenting {
+    struct Presentation {
+        let windowCount: Int
+        let cardSize: WindowSwitcherCardSize
+    }
+
+    var shows: [Presentation] = []
+    var hideCount = 0
+
+    func show(windowCount: Int, cardSize: WindowSwitcherCardSize) {
+        shows.append(.init(windowCount: windowCount, cardSize: cardSize))
+    }
+
+    func hide() { hideCount += 1 }
 }
 
 @MainActor

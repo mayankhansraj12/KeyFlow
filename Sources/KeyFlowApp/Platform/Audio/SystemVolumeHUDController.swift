@@ -7,7 +7,7 @@ import KeyFlowCore
 /// system OSD process rebuild the native HUD repeatedly. Direct Core Audio updates plus
 /// one reusable, layer-backed panel preserve immediate feedback without that hot path.
 @MainActor
-final class SystemVolumeHUDController {
+final class SystemVolumeHUDController: VolumeHUDControlling {
     private let content = SystemVolumeHUDView(
         frame: NSRect(origin: .zero, size: SystemVolumeHUDLayout.preferredSize)
     )

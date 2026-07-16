@@ -2,7 +2,13 @@ import AppKit
 import CoreGraphics
 import IOKit
 
-enum SystemMediaKeyController {
+@MainActor
+protocol MediaKeyControlling: AnyObject {
+    func pressPlayPause() -> Bool
+}
+
+@MainActor
+final class SystemMediaKeyController: MediaKeyControlling {
     enum Key {
         case playPause
 
@@ -13,12 +19,16 @@ enum SystemMediaKeyController {
         }
     }
 
-    static func press(_ key: Key) -> Bool {
+    func pressPlayPause() -> Bool {
+        press(.playPause)
+    }
+
+    private func press(_ key: Key) -> Bool {
         guard post(key, isDown: true) else { return false }
         return post(key, isDown: false)
     }
 
-    private static func post(_ key: Key, isDown: Bool) -> Bool {
+    private func post(_ key: Key, isDown: Bool) -> Bool {
         let state = isDown ? 0xA : 0xB
         let modifierFlags = NSEvent.ModifierFlags(rawValue: UInt(state << 8))
         let data1 = Int((key.nxKeyType << 16) | Int32(state << 8))
