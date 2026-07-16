@@ -22,13 +22,22 @@ struct ShortcutRecorder: NSViewRepresentable {
 
     func updateNSView(_ button: NSButton, context: Context) {
         context.coordinator.parent = self
+        if !isRecording, context.coordinator.isMonitoring {
+            context.coordinator.cancelRecording()
+        }
         button.title = isRecording ? "Press shortcut… (Esc to cancel)" : shortcutLabel
+    }
+
+    static func dismantleNSView(_: NSButton, coordinator: Coordinator) {
+        coordinator.cancelRecording()
     }
 
     @MainActor
     final class Coordinator: NSObject {
         var parent: ShortcutRecorder
         private var monitor: Any?
+
+        var isMonitoring: Bool { monitor != nil }
 
         init(parent: ShortcutRecorder) {
             self.parent = parent
@@ -53,7 +62,12 @@ struct ShortcutRecorder: NSViewRepresentable {
             }
         }
 
+        func cancelRecording() {
+            finishRecording()
+        }
+
         private func finishRecording() {
+            guard monitor != nil else { return }
             if let monitor { NSEvent.removeMonitor(monitor) }
             monitor = nil
             parent.onRecordingChanged(false)

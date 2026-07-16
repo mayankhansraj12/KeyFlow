@@ -851,7 +851,7 @@ public struct GestureSettings: Codable, Equatable, Sendable {
 }
 
 public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 18
+    public static let currentSchemaVersion = 19
 
     public var schemaVersion: Int
     public var revision: Int
@@ -920,14 +920,62 @@ public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
     }
 }
 
+public enum MenuBarIconStyle: String, Codable, CaseIterable, Identifiable, Sendable {
+    case touch
+    case command
+    case keyboard
+    case controls
+    case pointer
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .touch: "Touch"
+        case .command: "Command"
+        case .keyboard: "Keyboard"
+        case .controls: "Controls"
+        case .pointer: "Pointer"
+        }
+    }
+
+    public var systemSymbolName: String {
+        switch self {
+        case .touch: "hand.tap.fill"
+        case .command: "command.circle.fill"
+        case .keyboard: "keyboard"
+        case .controls: "slider.horizontal.3"
+        case .pointer: "hand.point.up.left.fill"
+        }
+    }
+}
+
 public struct ApplicationPreferences: Codable, Equatable, Sendable {
     public var hideFromDock: Bool
+    public var menuBarIconStyle: MenuBarIconStyle
 
-    public init(hideFromDock: Bool = false) {
+    public init(
+        hideFromDock: Bool = false,
+        menuBarIconStyle: MenuBarIconStyle = .touch
+    ) {
         self.hideFromDock = hideFromDock
+        self.menuBarIconStyle = menuBarIconStyle
     }
 
     public static let `default` = ApplicationPreferences()
+
+    private enum CodingKeys: String, CodingKey {
+        case hideFromDock
+        case menuBarIconStyle
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        hideFromDock = try container.decodeIfPresent(Bool.self, forKey: .hideFromDock) ?? false
+        menuBarIconStyle =
+            try container.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIconStyle)
+            ?? .touch
+    }
 }
 
 public enum MappingValidationError: LocalizedError, Equatable, Sendable {

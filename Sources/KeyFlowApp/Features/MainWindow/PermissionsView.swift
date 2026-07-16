@@ -114,6 +114,36 @@ struct PermissionsView: View {
                 )
             }
 
+            Section {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Menu Bar Icon")
+                                .font(.headline)
+                            Text("Choose the monochrome template shown in the macOS menu bar.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(model.applicationPreferences.menuBarIconStyle.displayName)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    MenuBarIconPicker(
+                        selection: model.applicationPreferences.menuBarIconStyle,
+                        select: model.setMenuBarIconStyle
+                    )
+                }
+                .padding(.vertical, 6)
+            } header: {
+                Text("Appearance")
+            } footer: {
+                Text(
+                    "Touch uses the supplied KeyFlow touch motif. All choices are template icons, so macOS automatically keeps them legible in light and dark menu bars."
+                )
+            }
+
             Section("Safety") {
                 Toggle(
                     "Pause all mappings",
@@ -182,6 +212,54 @@ struct PermissionsView: View {
     }
 
     private func yesNo(_ value: Bool) -> String { value ? "yes" : "no" }
+}
+
+private struct MenuBarIconPicker: View {
+    let selection: MenuBarIconStyle
+    let select: (MenuBarIconStyle) -> Void
+
+    private let columns = Array(
+        repeating: GridItem(.flexible(minimum: 74), spacing: 10),
+        count: MenuBarIconStyle.allCases.count
+    )
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 10) {
+            ForEach(MenuBarIconStyle.allCases) { style in
+                let isSelected = style == selection
+                Button {
+                    select(style)
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: style.systemSymbolName)
+                            .font(.system(size: 22, weight: .medium))
+                            .symbolRenderingMode(.monochrome)
+                            .frame(height: 26)
+                        Text(style.displayName)
+                            .font(.caption)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                    .frame(maxWidth: .infinity, minHeight: 62)
+                    .background(
+                        isSelected ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor),
+                        in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(
+                                isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
+                                lineWidth: isSelected ? 2 : 1
+                            )
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Use the \(style.displayName) menu-bar icon")
+                .accessibilityLabel("\(style.displayName) menu-bar icon")
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+    }
 }
 
 private struct PermissionRow: View {

@@ -12,6 +12,17 @@ import Testing
 @Suite("KeyFlow application model", .serialized)
 @MainActor
 struct AppModelTests {
+    @Test("Every menu-bar icon choice resolves to a native template symbol")
+    func menuBarIconSymbolsResolve() {
+        for style in MenuBarIconStyle.allCases {
+            let image = NSImage(
+                systemSymbolName: style.systemSymbolName,
+                accessibilityDescription: style.displayName
+            )
+            #expect(image != nil, "Missing symbol for \(style.rawValue)")
+        }
+    }
+
     @Test("Sound Bar layout uses compact symmetric spacing")
     func soundBarLayoutSpacing() {
         let bounds = NSRect(origin: .zero, size: SystemVolumeHUDLayout.preferredSize)
@@ -952,6 +963,14 @@ struct AppModelTests {
         #expect(model.dockVisibilityRequiresRelaunch)
         #expect(dependencies.applicationPresentation.preparedValues == [false, true])
         #expect(await dependencies.store.savedConfigurations().last?.applicationPreferences.hideFromDock == true)
+
+        model.setMenuBarIconStyle(.pointer)
+        await eventually { await dependencies.store.savedConfigurations().count == 2 }
+        #expect(model.applicationPreferences.menuBarIconStyle == .pointer)
+        #expect(
+            await dependencies.store.savedConfigurations().last?.applicationPreferences.menuBarIconStyle
+                == .pointer
+        )
 
         model.relaunchToApplyDockVisibility()
         await eventually { dependencies.applicationPresentation.relaunchCount == 1 }

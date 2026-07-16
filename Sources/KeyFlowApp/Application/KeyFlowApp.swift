@@ -15,7 +15,7 @@ struct KeyFlowApp: App {
         .defaultSize(width: 1040, height: 680)
         .commands {
             CommandGroup(after: .newItem) {
-                Button("New Mapping") { model.addMapping() }
+                Button("New Shortcut") { model.addKeyboardMapping() }
                     .keyboardShortcut("n", modifiers: [.command])
             }
         }
@@ -27,8 +27,12 @@ struct KeyFlowApp: App {
         .defaultSize(width: 700, height: 520)
         .windowResizability(.contentSize)
 
-        MenuBarExtra("KeyFlow", systemImage: model.isPaused ? "pause.circle.fill" : "command.circle.fill") {
+        MenuBarExtra {
             KeyFlowMenu(model: model)
+        } label: {
+            Image(systemName: model.applicationPreferences.menuBarIconStyle.systemSymbolName)
+                .symbolRenderingMode(.monochrome)
+                .accessibilityLabel(model.isPaused ? "KeyFlow — Paused" : "KeyFlow")
         }
     }
 }
