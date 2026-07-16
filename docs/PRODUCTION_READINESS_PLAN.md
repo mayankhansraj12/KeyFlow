@@ -78,20 +78,22 @@ Checkpoint: the release checklist has evidence for every manual gate and SHA-256
 
 ## Phase 8 — GitHub production controls
 
-- [ ] Push the reviewed source through a pull request.
+- [x] Push the source through draft pull request [#1](https://github.com/mayankhansraj12/KeyFlow/pull/1) for review.
 - [ ] Require the CI check and review on `main`; block force-push and branch deletion.
 - [ ] Configure the protected `production` environment, required reviewer, and release secrets.
 - [x] Add CODEOWNERS, a production-risk PR template, and weekly GitHub Actions/Swift Dependabot configuration.
 - [x] Add an authenticated audit for branch protection, environment secret names, private vulnerability reporting, secret scanning, and push protection.
-- [ ] Enable and verify remote secret scanning/push protection, private vulnerability reporting, and signed-release policy.
-- [ ] Run CI and the non-publishing release workflow on the exact candidate commit.
+- [x] Enable and verify GitHub secret scanning and push protection.
+- [ ] Enable private vulnerability reporting and Dependabot security updates. **Repository owner action required.**
+- [x] Run the complete hosted CI workflow on source commit `ca685aa`; run 29461348699 passed.
+- [ ] Run the non-publishing release workflow on the frozen candidate. **Protected environment and release credentials required.**
 
-Checkpoint: the remote branch, environment, workflow run, and release artifact all reference the same immutable commit.
+Checkpoint: the draft PR and successful CI run reference the same source commit. Protected-environment and signed-artifact provenance remain release-owner gates.
 
 ## Phase 9 — Operations, privacy, and support
 
 - [x] Define HTTPS privacy/support URLs and expose them from the menu-bar UI; they resolve through the public repository after the candidate is pushed.
-- [ ] Configure a private security-reporting channel. **Repository owner action required.**
+- [ ] Enable GitHub private vulnerability reporting or configure another private security-reporting channel. **Repository owner action required.**
 - [x] Document diagnostic collection, retention, redaction, incident response, rollback, and release ownership.
 - [x] Finalize candidate release notes, known limitations, compatibility status, and support boundary.
 
@@ -101,7 +103,8 @@ Checkpoint: operational contacts and URLs are present in the release metadata an
 
 - [x] Re-run local validation, both sanitizers, coverage, universal build, bundle audit, isolated-home smoke launch, ZIP/DMG round trip, workflow lint, zsh syntax validation, and source/history secret scans.
 - [x] Resolve every source-controlled critical/high finding and explicitly retain external release blockers.
-- [ ] Complete clean-account/hardware checks and remote CI on the reviewed candidate.
+- [x] Pass the complete hosted CI workflow on the source candidate.
+- [ ] Complete clean-account and physical-hardware checks.
 - [ ] Freeze the commit, create the matching signed tag, and produce artifacts once.
 - [ ] Approve or reject the release using the evidence in `PRODUCTION_AUDIT_REPORT.md`.
 

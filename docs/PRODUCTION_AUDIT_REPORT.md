@@ -21,8 +21,8 @@ The source-controlled candidate is locally qualified as a manually updated beta,
 | Automatic updates | Deliberately deferred | Machine-verifiable bundle policy and release checks scope `0.1.7` as manual-beta; signed updater architecture is documented, while key/feed/upgrade qualification remain owner gates |
 | Platform integration tests | Pass locally / hardware gate remains | 102 tests plus AddressSanitizer and ThreadSanitizer cover injected permission, login item, audio, media, runtime, screenshot events, thumbnail cache, compatibility policy, and switcher behavior; real TCC, Core Audio devices, ScreenCaptureKit, and exact AX activation remain clean-install/hardware gates |
 | Performance evidence | Partial / hardware gate remains | Event-driven screenshot waiting, opt-in signposts, regression budgets, and an idle sample are recorded; active physical gesture/Instruments traces remain required |
-| Remote CI | Stale/failing | Public remote remains at `55a7a65`; the production-foundation commit has not been pushed or run remotely |
-| Repository controls | Partial / owner gate | Authenticated connector confirms owner admin access; CODEOWNERS, PR policy, Dependabot, and an audit script exist, while branch protection, production environment, private reporting, and security settings require repository-admin configuration |
+| Remote CI | Pass for source candidate | Draft PR [#1](https://github.com/mayankhansraj12/KeyFlow/pull/1) is open against `main`; hosted run [29461348699](https://github.com/mayankhansraj12/KeyFlow/actions/runs/29461348699) passed every CI gate on source commit `ca685aa0f9c651f419a9e26d68722147e3d9df67` |
+| Repository controls | Partial / owner gate | CODEOWNERS, PR policy, weekly dependency updates, and an authenticated audit exist. GitHub secret scanning and push protection are enabled. `main` is not protected, the `production` environment is absent, private vulnerability reporting and Dependabot security updates are disabled, and no independent required reviewer is configured |
 | Legal ownership | Needs confirmation | Proprietary license uses the placeholder “KeyFlow contributors”; the release owner must confirm the legal copyright holder |
 
 ## Release blockers
@@ -30,9 +30,9 @@ The source-controlled candidate is locally qualified as a manually updated beta,
 1. No Developer ID signed, notarized, stapled candidate exists.
 2. No clean-install and upgrade qualification has been recorded.
 3. Raw multitouch has no completed physical compatibility matrix.
-4. The exact candidate commit has not passed remote CI.
+4. The draft PR has not been independently reviewed or merged, `main` has no required CI/review protection, and no protected `production` environment exists.
 5. Physical interaction performance traces and clean-account platform qualification are not complete; deterministic hot-path budgets and idle/package evidence pass locally.
-6. Private security reporting, final legal ownership, and broad-release update credentials/hosting are not finalized. Privacy/support URLs and the manual-beta update scope are defined but require the candidate push to reflect final content.
+6. Private vulnerability reporting, Dependabot security updates, final legal ownership, and broad-release update credentials/hosting are not finalized. Privacy/support URLs and the manual-beta update scope are defined in the candidate.
 
 ## Accepted candidate limitations
 
@@ -56,3 +56,4 @@ The source-controlled candidate is locally qualified as a manually updated beta,
 - 2026-07-16: Final local gate passed with 102 tests, warnings-as-errors release build, AddressSanitizer, ThreadSanitizer, 28.75% overall/85.06% Core coverage, actionlint, native zsh syntax validation, filesystem/full-history secret scans, a universal build, strict bundle verification, isolated-home startup, and ZIP/mounted-DMG qualification.
 - 2026-07-16: Draft PR #1 exposed an undeclared `rg` dependency on GitHub's macOS 26 runner after tests/build passed. Replaced release-script searches with system `grep` and advanced checkout/upload actions to their current Node-compatible pinned releases before rerunning CI.
 - 2026-07-16: The next PR run exposed a fixed-delay assumption in the automatic thumbnail-eviction test on a busy hosted runner. Replaced it with a bounded eventual assertion that still never invokes cache cleanup; production deadline eviction is unchanged.
+- 2026-07-16: Hosted pull-request run 29461348699 passed all tests, sanitizers, coverage, workflow/security checks, universal packaging, bundle verification, isolated startup, and ZIP/DMG qualification on `ca685aa`. A live repository-settings audit confirmed secret scanning and push protection enabled; `main` protection, the `production` environment, private vulnerability reporting, and Dependabot security updates remain explicit owner gates.
