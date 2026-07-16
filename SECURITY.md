@@ -9,11 +9,11 @@ treated as security-sensitive boundaries.
 
 | Version | Security updates |
 |---|---|
-| Current `main` branch and latest published beta | Supported on a best-effort basis |
+| Current `main` branch and latest published release | Supported on a best-effort basis |
 | Older commits, unofficial binaries, and forks | Not supported |
 
-No official KeyFlow binary has been published yet. Until the first GitHub
-Release is available, security fixes target the current `main` branch.
+Security fixes target the latest published release and the current `main`
+branch.
 
 ## Report a vulnerability
 

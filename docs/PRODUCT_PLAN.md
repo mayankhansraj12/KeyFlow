@@ -1,7 +1,7 @@
 # KeyFlow product roadmap
 
 Updated: 2026-07-16
-Current candidate: `0.1.7` (`8`)
+Current release: `0.1.7` (`8`)
 Distribution target: signed and notarized direct download for macOS 15 or later
 
 This roadmap describes KeyFlow's current direction. It replaces the original
@@ -34,9 +34,9 @@ proprietary presets. It develops its own focused workflows and architecture.
    appear in the editor until their runtime, migration, privacy, and failure
    behavior are implemented.
 
-## Current beta
+## Current release
 
-The `0.1.7` candidate currently provides:
+KeyFlow `0.1.7` provides:
 
 - global keyboard chords that open a selected application;
 - optional suppression of the original keyboard shortcut;
@@ -77,19 +77,17 @@ experimental. It must:
 
 ## Release roadmap
 
-### Public beta readiness
+### Signed distribution readiness
 
-Before publishing the first official binary:
+Before publishing a Developer ID signed and Apple-notarized binary:
 
-- complete the public repository presentation and community documentation;
-- protect `main` and configure the production release environment;
 - complete physical Apple-silicon, Intel, built-in-trackpad, and Magic
   Trackpad checks;
 - record active-gesture performance and frame-pacing traces;
 - sign with Developer ID, notarize, staple, and pass Gatekeeper;
 - verify a clean installation, permissions, sleep/wake, login launch, and
   configuration upgrade;
-- publish immutable checksums and release notes with the DMG.
+- publish the notarized DMG and immutable checksums.
 
 The current gate is tracked in
 [Production readiness](PRODUCTION_READINESS_PLAN.md).

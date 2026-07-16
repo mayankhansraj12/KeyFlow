@@ -8,12 +8,6 @@ on:
         required: true
         default: false
         type: boolean
-      prerelease:
-        description: Mark the GitHub release as a prerelease
-        required: true
-        default: true
-        type: boolean
-
 permissions:
   contents: write
 
@@ -86,15 +80,15 @@ jobs:
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
-          PRERELEASE: ${{ inputs.prerelease }}
         run: |
           VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
           TAG="v$VERSION"
-          ARGS=("$TAG" release/*.dmg release/*.zip release/SHA256SUMS --target "$GITHUB_SHA" --title "KeyFlow $VERSION" --generate-notes --verify-tag)
-          if [[ "$PRERELEASE" == "true" ]]; then
-            ARGS+=(--prerelease)
-          fi
-          gh release create "${ARGS[@]}"
+          gh release create "$TAG" "release/KeyFlow-$VERSION.dmg" \
+            --target "$GITHUB_SHA" \
+            --title "KeyFlow $VERSION" \
+            --notes-file "docs/RELEASE_NOTES_$VERSION.md" \
+            --verify-tag \
+            --latest
 
       - name: Remove ephemeral signing material
         if: ${{ always() }}

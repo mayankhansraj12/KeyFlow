@@ -38,7 +38,7 @@ SUPPORT_URL="$(/usr/libexec/PlistBuddy -c 'Print :KeyFlowSupportURL' "$CONTENTS/
 
 RELEASE_CHANNEL="$(/usr/libexec/PlistBuddy -c 'Print :ReleaseChannel' "$CONTENTS/Resources/ReleasePolicy.plist")"
 AUTOMATIC_UPDATES="$(/usr/libexec/PlistBuddy -c 'Print :AutomaticUpdatesEnabled' "$CONTENTS/Resources/ReleasePolicy.plist")"
-[[ "$RELEASE_CHANNEL" == "manual-beta" && "$AUTOMATIC_UPDATES" == "false" ]] || {
+[[ "$RELEASE_CHANNEL" == "manual" && "$AUTOMATIC_UPDATES" == "false" ]] || {
     print -u2 "Unsupported release/update policy: $RELEASE_CHANNEL automatic=$AUTOMATIC_UPDATES"
     exit 1
 }

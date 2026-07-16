@@ -5,7 +5,7 @@
     <key>SchemaVersion</key>
     <integer>1</integer>
     <key>ReleaseChannel</key>
-    <string>manual-beta</string>
+    <string>manual</string>
     <key>AutomaticUpdatesEnabled</key>
     <false/>
     <key>RawMultitouchStability</key>

@@ -26,4 +26,5 @@ List the checks you ran and any hardware or permissions involved.
 
 ## Maintainer notes
 
-State whether this changes the manual-beta contract, raw multitouch compatibility, required permissions, configuration schema, or release notes.
+State whether this changes the manual-update contract, raw multitouch
+compatibility, required permissions, configuration schema, or release notes.

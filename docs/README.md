@@ -13,9 +13,9 @@ open-source macOS utility.
 - [Privacy](PRIVACY.md) — local data, permissions, diagnostics, and thumbnail
   handling.
 - [Support](SUPPORT.md) — troubleshooting and what to include in an issue.
-- [Candidate notes](RELEASE_NOTES_0.1.7.md) — changes and limitations planned
-  for the first beta.
-- [Update policy](UPDATE_POLICY.md) — how manual beta updates work.
+- [Release notes](RELEASE_NOTES_0.1.7.md) — changes and limitations in
+  KeyFlow 0.1.7.
+- [Update policy](UPDATE_POLICY.md) — how manual updates work.
 
 ## For contributors
 

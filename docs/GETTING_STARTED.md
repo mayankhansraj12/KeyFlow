@@ -10,21 +10,13 @@ optional Screen Recording permission.
 
 ## Install from a DMG
 
-Official DMGs will appear on
-[GitHub Releases](https://github.com/mayankhansraj12/KeyFlow/releases). Until
-the first release is published, follow the
-[source-build instructions](../README.md#build-from-source) to produce
-`KeyFlow.app` or the drag-to-Applications DMG.
-
-When a DMG is available:
-
-1. Download it from GitHub Releases.
+1. Download [KeyFlow 0.1.7](https://github.com/mayankhansraj12/KeyFlow/releases/download/v0.1.7/KeyFlow-0.1.7.dmg).
 2. Open the DMG.
 3. Drag **KeyFlow** into **Applications**.
 4. Eject the KeyFlow installer.
 5. Open KeyFlow from Applications.
 
-The current community build may not be Apple-notarized. If macOS blocks the
+The current free release is not Apple-notarized. If macOS blocks the
 first launch, Control-click KeyFlow, choose **Open**, and confirm. You can also
 use **System Settings → Privacy & Security → Open Anyway**.
 

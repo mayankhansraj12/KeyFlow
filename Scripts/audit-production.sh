@@ -70,7 +70,7 @@ RELEASE_CHANNEL="$(/usr/libexec/PlistBuddy -c 'Print :ReleaseChannel' "$RELEASE_
 AUTOMATIC_UPDATES="$(/usr/libexec/PlistBuddy -c 'Print :AutomaticUpdatesEnabled' "$RELEASE_POLICY")"
 RAW_MULTITOUCH_STABILITY="$(/usr/libexec/PlistBuddy -c 'Print :RawMultitouchStability' "$RELEASE_POLICY")"
 [[ "$RELEASE_POLICY_SCHEMA" == "1" ]] || fail "unsupported release-policy schema: $RELEASE_POLICY_SCHEMA"
-[[ "$RELEASE_CHANNEL" == "manual-beta" ]] || fail "candidate must remain on the manual-beta channel"
+[[ "$RELEASE_CHANNEL" == "manual" ]] || fail "release must remain on the manual update channel"
 [[ "$AUTOMATIC_UPDATES" == "false" ]] || fail "automatic updates are not qualified"
 [[ "$RAW_MULTITOUCH_STABILITY" == "experimental" ]] || fail "raw multitouch must remain experimental"
 

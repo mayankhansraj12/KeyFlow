@@ -1,4 +1,4 @@
-# KeyFlow 0.1.7 beta candidate notes
+# KeyFlow 0.1.7
 
 ## Highlights
 
@@ -12,11 +12,11 @@
 
 ## Installation and updates
 
-This is the candidate scope for an open-source, manually updated beta on macOS
-15 or later. Automatic updates are not enabled. Community builds can be
-produced from source. Maintainer-published binaries additionally require
-Developer ID signing, notarization/stapling, immutable checksums, and the
-remaining release gates.
+KeyFlow 0.1.7 is an open-source, manually updated release for macOS 15 or
+later. Automatic updates are not enabled. The downloadable DMG is ad-hoc
+signed and is not Apple-notarized, so macOS may require Control-clicking
+KeyFlow and choosing **Open**, or approval under **System Settings → Privacy &
+Security**.
 
 ## Known limitations
 

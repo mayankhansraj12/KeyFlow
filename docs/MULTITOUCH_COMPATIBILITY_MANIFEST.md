@@ -1,6 +1,7 @@
 # Signed multitouch compatibility manifest
 
-Status: design gate for broad distribution; not enabled in the manually updated `0.1.7` beta.
+Status: design gate for broad distribution; not enabled in the manually
+updated `0.1.7` release.
 
 ## Purpose
 
