@@ -37,19 +37,25 @@ Recommended community features:
 Configure these through an authenticated repository-owner session, then run `./Scripts/audit-github-production.sh`:
 
 1. Protect both long-lived branches, `main` and `dev`. Require pull requests
-   and a current `Build, test, and package` check, require resolved
-   conversations, include administrators, and forbid force-push/deletion on
-   both branches. Keep linear history required on `dev`. Permit merge commits
-   on `main` so each production promotion preserves the exact integrated
-   `dev` history.
+   and `Build, test, and package`, require resolved conversations, include
+   administrators, and forbid force-push/deletion on both branches. Require
+   contributor branches to be current with `dev` and keep linear history on
+   `dev`. Permit merge commits on `main` so each production promotion preserves
+   the exact integrated `dev` history. Do not require `dev` to contain the
+   previous release merge commit before another promotion: the source gate
+   excludes other branches, while pull-request CI evaluates the proposed merge
+   against the current `main` state.
    While the repository has only one push-capable maintainer, the approval
    count remains zero so changes are not made impossible to merge. As soon as
    a second maintainer is added, require at least one approving CODEOWNER
    review.
-2. Require `Validate promotion source` on `main`. The metadata-only workflow
-   permits only a pull request from the `dev` branch in this repository; a
-   similarly named branch in a fork is rejected. `dev` accepts pull requests
-   from contributor branches and forks after the normal CI gate passes.
+2. Require `Validate promotion source` on `main`. The metadata-only
+   `pull_request_target` workflow executes the trusted definition from the
+   protected base branch, has no repository permissions, and never checks out
+   pull-request code. It permits only a pull request from the `dev` branch in
+   this repository; a similarly named branch in a fork is rejected. `dev`
+   accepts pull requests from contributor branches and forks after the normal
+   CI gate passes.
 3. Use one-way promotion: short-lived branches to `dev`, then `dev` to `main`.
    Squash or rebase focused changes into `dev` and merge the release pull
    request into `main` with a merge commit. Do not create routine

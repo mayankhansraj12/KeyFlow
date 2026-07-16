@@ -1,6 +1,6 @@
 # Production audit report
 
-Updated: 2026-07-16
+Updated: 2026-07-17
 Release: KeyFlow `0.1.7` (`8`)
 Configuration schema: `20`
 
@@ -33,7 +33,7 @@ trackpad/CPU coverage, or release-owner approval.
 | Raw multitouch | Conditional | Provider isolation, compatibility policy, and fail-open fallback are tested; physical matrix remains incomplete |
 | Performance | Partial | Automated hot-path budgets pass; active physical gesture, screenshot, and switcher Instruments traces remain required |
 | Public repository metadata | Pass | Description, product topics, Issues, private vulnerability reporting, secret scanning, push protection, Dependabot security updates, and automatic merged-branch deletion are enabled |
-| Repository protection | Pass for one maintainer | `main` accepts only validated in-repository `dev` promotions; both long-lived branches require pull requests, current CI, resolved conversations, and administrator compliance; `dev` requires linear history, and force-push/deletion are blocked |
+| Repository protection | Pass for one maintainer | `main` accepts only trusted, validated in-repository `dev` promotions; both long-lived branches require pull requests, CI, resolved conversations, and administrator compliance; `dev` requires current linear history, release merge commits remain on `main`, and force-push/deletion are blocked |
 | Release governance | Partial | The stable GitHub release is public; the protected `production` environment still lacks Apple release secrets and an independent reviewer |
 | Signing and notarization | Blocked externally | Developer ID identity, registered bundle ID, notarization credentials, and release-owner approval are required |
 | Automatic updates | Deliberately deferred | Bundled release policy identifies this release as `manual`; no update client or feed is claimed |
