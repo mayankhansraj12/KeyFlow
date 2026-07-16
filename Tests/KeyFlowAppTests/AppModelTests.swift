@@ -346,7 +346,10 @@ struct AppModelTests {
         )
 
         #expect(provider.cacheEntryCount == 1)
-        try await Task.sleep(for: .milliseconds(100))
+        let deadline = ContinuousClock.now + .seconds(2)
+        while provider.cacheEntryCount != 0, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         #expect(provider.cacheEntryCount == 0)
         #expect(provider.cacheMemoryCost == 0)
     }
