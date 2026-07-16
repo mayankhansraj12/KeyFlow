@@ -30,6 +30,13 @@ gh auth status >/dev/null 2>&1 || fail "GitHub CLI is not authenticated"
 function audit_branch_protection() {
     local branch="$1"
     local protection
+    local required_checks=(
+        "Build, test, and package"
+    )
+
+    if [[ "$branch" == "main" ]]; then
+        required_checks+=("Validate promotion source")
+    fi
 
     gh api "repos/$REPOSITORY/branches/$branch" >/dev/null \
         || fail "$branch branch is unavailable"
@@ -37,14 +44,24 @@ function audit_branch_protection() {
         || fail "$branch branch protection is unavailable"
     jq -e '.required_status_checks.strict == true' <<<"$protection" >/dev/null \
         || fail "$branch does not require branches to be current before merging"
-    jq -e '.required_status_checks.contexts | index("Build, test, and package") != null' \
-        <<<"$protection" >/dev/null || fail "$branch is missing the required CI check"
+    for check in "${required_checks[@]}"; do
+        jq -e --arg check "$check" \
+            '.required_status_checks.contexts | index($check) != null' \
+            <<<"$protection" >/dev/null \
+            || fail "$branch is missing required check: $check"
+    done
     jq -e '.required_pull_request_reviews != null' <<<"$protection" >/dev/null \
         || fail "$branch does not require pull requests"
     jq -e '.enforce_admins.enabled == true' <<<"$protection" >/dev/null \
         || fail "$branch rules do not include administrators"
-    jq -e '.required_linear_history.enabled == true' <<<"$protection" >/dev/null \
-        || fail "$branch does not require linear history"
+    if [[ "$branch" == "dev" ]]; then
+        jq -e '.required_linear_history.enabled == true' <<<"$protection" >/dev/null \
+            || fail "dev does not require linear history"
+    else
+        jq -e '(.required_linear_history.enabled // false) == false' \
+            <<<"$protection" >/dev/null \
+            || fail "main must permit release merge commits"
+    fi
     jq -e '.required_conversation_resolution.enabled == true' <<<"$protection" >/dev/null \
         || fail "$branch does not require resolved conversations"
     jq -e '.allow_force_pushes.enabled == false and .allow_deletions.enabled == false' \
@@ -90,6 +107,8 @@ gh api "repos/$REPOSITORY/private-vulnerability-reporting" >/dev/null \
     || fail "private vulnerability reporting is not enabled"
 
 REPOSITORY_STATE="$(gh api "repos/$REPOSITORY")"
+jq -e '.allow_merge_commit == true' <<<"$REPOSITORY_STATE" >/dev/null \
+    || fail "repository does not permit merge commits for dev-to-main promotions"
 jq -e '.security_and_analysis.secret_scanning.status == "enabled"' <<<"$REPOSITORY_STATE" >/dev/null \
     || fail "secret scanning is not enabled"
 jq -e '.security_and_analysis.secret_scanning_push_protection.status == "enabled"' \
