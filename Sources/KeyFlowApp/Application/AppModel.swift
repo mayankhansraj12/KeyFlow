@@ -454,6 +454,12 @@ final class AppModel: ObservableObject {
         commitChanges()
     }
 
+    func setMenuBarIconStyle(_ style: MenuBarIconStyle) {
+        guard applicationPreferences.menuBarIconStyle != style else { return }
+        applicationPreferences.menuBarIconStyle = style
+        commitChanges()
+    }
+
     func relaunchToApplyDockVisibility() {
         let configuration = currentConfiguration()
         Task { [weak self] in

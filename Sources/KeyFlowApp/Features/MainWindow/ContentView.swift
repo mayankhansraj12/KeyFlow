@@ -19,6 +19,7 @@ struct ContentView: View {
                 .tabItem { Label("Permissions", systemImage: "lock.shield") }
         }
         .frame(minWidth: 860, minHeight: 560)
+        .textSelection(.disabled)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.refreshPermissions()
         }

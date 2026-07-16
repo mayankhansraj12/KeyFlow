@@ -290,7 +290,6 @@ struct GestureSettingsView: View {
                 Text(model.macOSScreenshotDestinationDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
             }
         }
         .padding(.bottom, 14)
@@ -320,7 +319,6 @@ struct GestureSettingsView: View {
                     Text(model.screenshotStorageStatusDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
                     Spacer()
                 }
                 .padding(.leading, 40)

@@ -152,6 +152,11 @@ public enum ConfigurationMigrator {
             // installations retain the established left-aligned presentation.
             migrated.gestureSettings.volumePreferences.percentageAlignment = .left
             migrated.schemaVersion = 18
+        case 18:
+            // Schema 19 persists the menu-bar template icon. Existing
+            // installations adopt the KeyFlow touch mark by default.
+            migrated.applicationPreferences.menuBarIconStyle = .touch
+            migrated.schemaVersion = 19
         default:
             break
         }
