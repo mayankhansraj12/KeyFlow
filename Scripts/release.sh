@@ -8,11 +8,14 @@ APP_DIR="$ROOT/dist/KeyFlow.app"
 INFO_PLIST="$ROOT/Resources/Info.plist"
 IDENTITY="${DEVELOPER_ID_APPLICATION:-}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
+TEAM_ID="${DEVELOPER_TEAM_ID:-}"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
 BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")"
 ARCHIVE="$RELEASE_DIR/KeyFlow-$VERSION-$BUILD.zip"
 DMG="$RELEASE_DIR/KeyFlow-$VERSION-$BUILD.dmg"
 UNIVERSAL_BINARY="$RELEASE_DIR/KeyFlowApp-universal"
+APP_NOTARY_RESULT="$RELEASE_DIR/notarization-app.json"
+DMG_NOTARY_RESULT="$RELEASE_DIR/notarization-dmg.json"
 STAGING="$(mktemp -d)"
 
 function cleanup() {
@@ -28,10 +31,16 @@ trap cleanup EXIT
     print -u2 "Set NOTARY_PROFILE to a notarytool keychain profile."
     exit 64
 }
+[[ "$TEAM_ID" =~ '^[A-Z0-9]{10}$' ]] || {
+    print -u2 "Set DEVELOPER_TEAM_ID to the 10-character Apple Developer Team ID."
+    exit 1
+}
 security find-identity -v -p codesigning | grep -Fq "$IDENTITY" || {
     print -u2 "Developer ID identity was not found in the active keychains: $IDENTITY"
     exit 1
 }
+
+"$ROOT/Scripts/release-preflight.sh"
 
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
@@ -46,10 +55,17 @@ CODE_SIGN_TIMESTAMP=1 \
 
 "$ROOT/Scripts/verify-app.sh" "$APP_DIR"
 codesign --verify --deep --strict --verbose=2 "$APP_DIR"
-codesign -d --verbose=4 "$APP_DIR" 2>&1 | grep -q "Runtime Version"
+APP_SIGNATURE="$(codesign -d --verbose=4 "$APP_DIR" 2>&1)"
+grep -q "Runtime Version" <<<"$APP_SIGNATURE"
+grep -Fq "Authority=$IDENTITY" <<<"$APP_SIGNATURE"
+grep -Fq "TeamIdentifier=$TEAM_ID" <<<"$APP_SIGNATURE"
 
 ditto -c -k --keepParent "$APP_DIR" "$ARCHIVE"
-xcrun notarytool submit "$ARCHIVE" --keychain-profile "$NOTARY_PROFILE" --wait
+xcrun notarytool submit "$ARCHIVE" \
+    --keychain-profile "$NOTARY_PROFILE" \
+    --wait \
+    --output-format json > "$APP_NOTARY_RESULT"
+[[ "$(plutil -extract status raw -o - "$APP_NOTARY_RESULT")" == "Accepted" ]]
 xcrun stapler staple "$APP_DIR"
 xcrun stapler validate "$APP_DIR"
 spctl --assess --type execute --verbose=2 "$APP_DIR"
@@ -67,10 +83,15 @@ hdiutil create \
     "$DMG"
 codesign --force --sign "$IDENTITY" --timestamp "$DMG"
 
-xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+xcrun notarytool submit "$DMG" \
+    --keychain-profile "$NOTARY_PROFILE" \
+    --wait \
+    --output-format json > "$DMG_NOTARY_RESULT"
+[[ "$(plutil -extract status raw -o - "$DMG_NOTARY_RESULT")" == "Accepted" ]]
 xcrun stapler staple "$DMG"
 xcrun stapler validate "$DMG"
 spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
 
-shasum -a 256 "$ARCHIVE" "$DMG" > "$RELEASE_DIR/SHA256SUMS"
+shasum -a 256 "$ARCHIVE" "$DMG" "$APP_NOTARY_RESULT" "$DMG_NOTARY_RESULT" \
+    > "$RELEASE_DIR/SHA256SUMS"
 print "Release complete: $DMG"

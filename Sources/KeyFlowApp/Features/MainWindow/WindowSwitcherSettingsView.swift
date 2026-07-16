@@ -259,9 +259,9 @@ struct WindowSwitcherSettingsView: View {
 
     private var windowScopeHelp: String {
         switch model.windowSwitcherPreferences.windowScope {
-        case .standardApplications: "Show windows from regular Dock applications only."
+        case .standardApplications: "Only real windows belonging to regular Dock applications."
         case .allActiveWindows:
-            "Show every running Dock app plus accessory, menu-bar, and background apps with visible windows."
+            "Real open windows from Dock, accessory, menu-bar, and background applications."
         }
     }
 
@@ -380,9 +380,9 @@ private struct SwitcherAppearancePreview: View {
 
     private var cardSize: CGSize {
         switch preferences.cardSize {
-        case .compact: CGSize(width: 190, height: 158)
-        case .balanced: CGSize(width: 220, height: 173)
-        case .large: CGSize(width: 250, height: 189)
+        case .compact: CGSize(width: 160, height: 106)
+        case .balanced: CGSize(width: 180, height: 116)
+        case .large: CGSize(width: 200, height: 126)
         }
     }
 
@@ -396,14 +396,14 @@ private struct SwitcherAppearancePreview: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 9)
 
             Divider()
 
             GeometryReader { proxy in
-                let horizontalPadding: CGFloat = 18
-                let spacing: CGFloat = 12
+                let horizontalPadding: CGFloat = 12
+                let spacing: CGFloat = 8
                 let availableCardWidth = max(
                     80,
                     (proxy.size.width - horizontalPadding * 2 - spacing * 2) / 3
@@ -428,7 +428,7 @@ private struct SwitcherAppearancePreview: View {
                     .padding(.horizontal, horizontalPadding)
                 }
             }
-            .frame(height: 225)
+            .frame(height: 142)
         }
         .background {
             let shape = RoundedRectangle(cornerRadius: appearance.cornerRadius, style: .continuous)
@@ -455,7 +455,7 @@ private struct SwitcherAppearancePreview: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: appearance.cornerRadius, style: .continuous))
-        .shadow(color: .black.opacity(0.14), radius: 18, y: 8)
+        .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
         .preferredColorScheme(appearance.preferredColorScheme)
         .animation(.easeInOut(duration: 0.18), value: preferences)
     }

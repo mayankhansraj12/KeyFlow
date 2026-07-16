@@ -10,6 +10,9 @@ The app never asks users to disable SIP, install a kernel extension, run as root
 
 - All undocumented ABI declarations remain inside `KeyFlowMultitouchBridge`.
 - Availability and required symbols are checked at runtime.
+- Framework, symbol, device, start, and policy failures are distinguished in the Permissions UI and redacted diagnostics.
+- `KEYFLOW_DISABLE_RAW_MULTITOUCH=1` disables the raw provider without disabling keyboard shortcuts.
+- A source-controlled OS-build deny list provides an emergency gate in the next signed build.
 - Failure to load or start the provider leaves keyboard mappings and public AppKit gestures operational.
 - Raw frames are limited to 32 copied contacts and contain geometry only.
 - The provider has no access to configuration storage, action execution, networking, or UI.
@@ -43,4 +46,4 @@ Required outcomes:
 
 Do not label raw gestures stable until the matrix passes on physical hardware. A macOS beta or update that changes the private ABI blocks the raw provider for that OS until revalidated. Keyboard shortcuts and public gestures may still ship with raw gestures marked unavailable.
 
-A signed compatibility kill-switch manifest is still a future requirement before broad public distribution. Until it exists, raw gestures remain explicitly experimental.
+The signed compatibility-manifest protocol is specified in `MULTITOUCH_COMPATIBILITY_MANIFEST.md`, but its network client and release service are intentionally not part of this manually updated beta. Until that system is implemented and qualified, raw gestures remain explicitly experimental.

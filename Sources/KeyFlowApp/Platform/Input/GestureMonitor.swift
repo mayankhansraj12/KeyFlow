@@ -4,8 +4,8 @@ import KeyFlowCore
 enum MultitouchProviderStatus: Equatable, Sendable {
     case starting
     case running
-    case unavailable
-    case failed
+    case unavailable(MultitouchProviderIssue)
+    case failed(MultitouchProviderIssue)
 }
 
 @MainActor
@@ -41,14 +41,14 @@ final class GestureMonitor {
         }
         self.provider = provider
 
-        guard provider.isAvailable else {
+        if let issue = provider.availabilityIssue {
             self.provider = nil
-            onProviderStatus?(.unavailable)
+            onProviderStatus?(.unavailable(issue))
             return
         }
         guard provider.start() else {
             self.provider = nil
-            onProviderStatus?(.failed)
+            onProviderStatus?(.failed(provider.lastStartIssue ?? .startFailed))
             return
         }
         onProviderStatus?(.running)

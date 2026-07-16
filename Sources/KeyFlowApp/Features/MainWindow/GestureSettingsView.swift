@@ -5,7 +5,7 @@ struct GestureSettingsView: View {
     private static let settingsControlWidth: CGFloat = 270
 
     @EnvironmentObject private var model: AppModel
-    @State private var isVolumeAppearanceExpanded = false
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         ScrollView {
@@ -118,71 +118,35 @@ struct GestureSettingsView: View {
 
     private var volumeBehaviorPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Adjustment Behavior", systemImage: "slider.horizontal.3")
-                .font(.callout.weight(.semibold))
-
-            settingsLine(title: "Speed") {
-                HStack(spacing: 10) {
-                    Slider(value: volumeSpeedBinding, in: 0.5...2.5, step: 0.25)
-                    Text(
-                        model.gestureSettings.volumePreferences.speedMultiplier,
-                        format: .number.precision(.fractionLength(2))
-                    )
-                    .monospacedDigit()
-                    .frame(width: 38, alignment: .trailing)
-                    Text("×")
-                        .foregroundStyle(.secondary)
+            HStack {
+                Label("Adjustment Behavior", systemImage: "slider.horizontal.3")
+                    .font(.callout.weight(.semibold))
+                Spacer()
+                Button("Configure Sound Bar…") {
+                    openWindow(id: "sound-bar-settings")
                 }
-                .frame(width: Self.settingsControlWidth)
             }
 
-            settingsLine(title: "Response time") {
-                Picker("Response time", selection: volumeResponseBinding) {
-                    ForEach(VolumeAdjustmentPreferences.allowedResponseMilliseconds, id: \.self) { milliseconds in
-                        Text("\(milliseconds) ms").tag(milliseconds)
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    volumeSpeedControl
+                    Divider().frame(height: 44)
+                    volumeResponseControl
+                    Divider().frame(height: 44)
+                    volumeStepControl
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: Self.settingsControlWidth, alignment: .trailing)
-            }
-
-            settingsLine(title: "Change per step") {
-                Picker("Change per step", selection: volumeStepPercentageBinding) {
-                    ForEach(VolumeAdjustmentPreferences.allowedStepPercentages, id: \.self) { percentage in
-                        Text("\(percentage)%").tag(percentage)
-                    }
+                VStack(spacing: 8) {
+                    volumeSpeedControl
+                    volumeResponseControl
+                    volumeStepControl
                 }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: Self.settingsControlWidth)
             }
 
             Text(
-                "Speed controls how quickly continued movement repeats. Response time delays the first change; choose 0 ms for immediate response."
+                "Response controls the initial delay. Step controls the percentage changed per update."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
-            .padding(.leading, 40)
-
-            Divider()
-                .padding(.vertical, 1)
-
-            DisclosureGroup(isExpanded: $isVolumeAppearanceExpanded) {
-                volumeAppearanceControls
-                    .padding(.top, 10)
-            } label: {
-                HStack {
-                    Label("Configure Appearance", systemImage: "paintpalette")
-                        .font(.callout.weight(.semibold))
-                    Spacer()
-                    if model.gestureSettings.volumePreferences.hudAppearance != .default {
-                        Button("Default") { model.resetVolumeHUDAppearance() }
-                            .buttonStyle(.borderless)
-                            .font(.caption)
-                    }
-                }
-            }
         }
         .padding(12)
         .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
@@ -190,138 +154,52 @@ struct GestureSettingsView: View {
         .opacity(model.gestureSettings.volumeAdjustment.isEnabled ? 1 : 0.55)
     }
 
-    private var volumeAppearanceControls: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            volumeHUDPreview
-
-            settingsLine(title: "Theme") {
-                Picker("Theme", selection: volumeHUDThemeBinding) {
-                    ForEach(OverlayTheme.allCases) { theme in
-                        Text(theme.displayName).tag(theme)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: Self.settingsControlWidth)
-            }
-
-            settingsLine(title: "Background") {
-                HStack(spacing: 8) {
-                    Picker("Surface", selection: volumeHUDSurfaceBinding) {
-                        ForEach(OverlaySurfaceStyle.allCases) { style in
-                            Text(style.displayName).tag(style)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-
-                    Picker("Color", selection: volumeHUDBackgroundBinding) {
-                        ForEach(OverlayBackgroundColor.allCases) { color in
-                            Text(color.displayName).tag(color)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 105)
-                }
-                .frame(width: Self.settingsControlWidth)
-            }
-
-            settingsLine(title: "Accent") {
-                Picker("Accent", selection: volumeHUDAccentBinding) {
-                    ForEach(WindowSwitcherAccent.allCases) { accent in
-                        Text(accent.displayName).tag(accent)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: Self.settingsControlWidth, alignment: .trailing)
-            }
-
-            settingsLine(title: "Opacity") {
-                HStack(spacing: 8) {
-                    Slider(value: volumeHUDOpacityBinding, in: 0.45...1, step: 0.05)
-                    Text("\(Int((volumeHUDAppearance.backgroundOpacity * 100).rounded()))%")
-                        .font(.caption.monospacedDigit())
-                        .frame(width: 34, alignment: .trailing)
-                }
-                .frame(width: Self.settingsControlWidth)
-            }
-
-            settingsLine(title: "Shape") {
-                HStack(spacing: 8) {
-                    Slider(value: volumeHUDCornerRadiusBinding, in: 10...30, step: 1)
-                    Text("\(Int(volumeHUDAppearance.cornerRadius.rounded()))")
-                        .font(.caption.monospacedDigit())
-                        .frame(width: 20, alignment: .trailing)
-                    Toggle("Border", isOn: volumeHUDBorderBinding)
-                        .toggleStyle(.checkbox)
-                        .font(.caption)
-                }
-                .frame(width: Self.settingsControlWidth)
+    private var volumeSpeedControl: some View {
+        compactBehaviorField("Speed") {
+            HStack(spacing: 7) {
+                Slider(value: volumeSpeedBinding, in: 0.5...2.5, step: 0.25)
+                Text("\(model.gestureSettings.volumePreferences.speedMultiplier, specifier: "%.2f")×")
+                    .font(.caption.monospacedDigit())
+                    .frame(width: 42, alignment: .trailing)
             }
         }
     }
 
-    private var volumeHUDPreview: some View {
-        HStack(spacing: 11) {
-            Image(systemName: "speaker.wave.2.fill")
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.secondary.opacity(0.22))
-                    Capsule()
-                        .fill(volumeHUDAppearance.swiftUIAccentColor)
-                        .frame(width: proxy.size.width * 0.64)
+    private var volumeResponseControl: some View {
+        compactBehaviorField("Response") {
+            Picker("Response", selection: volumeResponseBinding) {
+                ForEach(VolumeAdjustmentPreferences.allowedResponseMilliseconds, id: \.self) { milliseconds in
+                    Text("\(milliseconds) ms").tag(milliseconds)
                 }
             }
-            .frame(height: 7)
-            Text("64%")
-                .font(.caption.monospacedDigit().weight(.semibold))
+            .labelsHidden()
+            .pickerStyle(.menu)
         }
-        .padding(.horizontal, 14)
-        .frame(width: 250, height: 48)
-        .background(volumeHUDPreviewBackground)
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: volumeHUDAppearance.cornerRadius * 0.8,
-                style: .continuous
-            )
-        )
-        .overlay {
-            if volumeHUDAppearance.showsBorder {
-                RoundedRectangle(
-                    cornerRadius: volumeHUDAppearance.cornerRadius * 0.8,
-                    style: .continuous
-                )
-                .stroke(Color.primary.opacity(0.14), lineWidth: 1)
-            }
-        }
-        .preferredColorScheme(volumeHUDAppearance.preferredColorScheme)
-        .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    @ViewBuilder
-    private var volumeHUDPreviewBackground: some View {
-        let shape = RoundedRectangle(
-            cornerRadius: volumeHUDAppearance.cornerRadius * 0.8,
-            style: .continuous
-        )
-        if volumeHUDAppearance.surfaceStyle == .frosted {
-            ZStack {
-                shape.fill(.ultraThickMaterial)
-                shape.fill(
-                    volumeHUDAppearance.swiftUIBackgroundColor.opacity(
-                        volumeHUDAppearance.backgroundOpacity * 0.34
-                    )
-                )
+    private var volumeStepControl: some View {
+        compactBehaviorField("Step") {
+            Picker("Step", selection: volumeStepPercentageBinding) {
+                ForEach(VolumeAdjustmentPreferences.allowedStepPercentages, id: \.self) { percentage in
+                    Text("\(percentage)%").tag(percentage)
+                }
             }
-        } else {
-            shape.fill(
-                volumeHUDAppearance.swiftUIBackgroundColor.opacity(
-                    volumeHUDAppearance.backgroundOpacity
-                )
-            )
+            .labelsHidden()
+            .pickerStyle(.segmented)
         }
+    }
+
+    private func compactBehaviorField<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func discreteFeatureRow(
@@ -501,65 +379,6 @@ struct GestureSettingsView: View {
         Binding(
             get: { model.gestureSettings.volumePreferences.stepPercentage },
             set: { model.setVolumeStepPercentage($0) }
-        )
-    }
-
-    private var volumeHUDAppearance: OverlayAppearancePreferences {
-        model.gestureSettings.volumePreferences.hudAppearance
-    }
-
-    private var volumeHUDThemeBinding: Binding<OverlayTheme> {
-        Binding(
-            get: { volumeHUDAppearance.theme },
-            set: { value in model.updateVolumeHUDAppearance { $0.theme = value } }
-        )
-    }
-
-    private var volumeHUDSurfaceBinding: Binding<OverlaySurfaceStyle> {
-        Binding(
-            get: { volumeHUDAppearance.surfaceStyle },
-            set: { value in model.updateVolumeHUDAppearance { $0.surfaceStyle = value } }
-        )
-    }
-
-    private var volumeHUDBackgroundBinding: Binding<OverlayBackgroundColor> {
-        Binding(
-            get: { volumeHUDAppearance.backgroundColor },
-            set: { value in
-                model.updateVolumeHUDAppearance {
-                    $0.backgroundColor = value
-                    if value == .light { $0.theme = .light }
-                    if value == .graphite || value == .midnight { $0.theme = .dark }
-                }
-            }
-        )
-    }
-
-    private var volumeHUDAccentBinding: Binding<WindowSwitcherAccent> {
-        Binding(
-            get: { volumeHUDAppearance.accent },
-            set: { value in model.updateVolumeHUDAppearance { $0.accent = value } }
-        )
-    }
-
-    private var volumeHUDOpacityBinding: Binding<Double> {
-        Binding(
-            get: { volumeHUDAppearance.backgroundOpacity },
-            set: { value in model.updateVolumeHUDAppearance { $0.backgroundOpacity = value } }
-        )
-    }
-
-    private var volumeHUDCornerRadiusBinding: Binding<Double> {
-        Binding(
-            get: { volumeHUDAppearance.cornerRadius },
-            set: { value in model.updateVolumeHUDAppearance { $0.cornerRadius = value } }
-        )
-    }
-
-    private var volumeHUDBorderBinding: Binding<Bool> {
-        Binding(
-            get: { volumeHUDAppearance.showsBorder },
-            set: { value in model.updateVolumeHUDAppearance { $0.showsBorder = value } }
         )
     }
 

@@ -29,7 +29,17 @@ enum ActionExecutionError: LocalizedError {
 protocol ActionExecuting: AnyObject {
     func execute(_ action: ActionDefinition, screenshotStorage: ScreenshotStorageSettings) async throws
     func executeContinuousVolume(_ action: ActionDefinition, stepCount: Int, stepPercentage: Int) throws
-    func updateOverlayAppearance(_ preferences: OverlayAppearancePreferences)
+    func updateVolumeHUDAppearance(_ preferences: OverlayAppearancePreferences)
+    func updateVolumeHUDPercentageAlignment(_ alignment: SoundBarPercentageAlignment)
+    func previewVolumeHUD()
+}
+
+@MainActor
+protocol VolumeHUDControlling: AnyObject {
+    func prepare()
+    func updateAppearance(_ preferences: OverlayAppearancePreferences)
+    func updatePercentageAlignment(_ alignment: SoundBarPercentageAlignment)
+    func show(level: Double)
 }
 
 extension ActionExecuting {
@@ -37,13 +47,18 @@ extension ActionExecuting {
         try await execute(action, screenshotStorage: .default)
     }
 
-    func updateOverlayAppearance(_: OverlayAppearancePreferences) {}
+    func updateVolumeHUDAppearance(_: OverlayAppearancePreferences) {}
+    func updateVolumeHUDPercentageAlignment(_: SoundBarPercentageAlignment) {}
+    func previewVolumeHUD() {}
 }
 
 @MainActor
 final class ActionExecutor: ActionExecuting {
     private let syntheticMarker: Int64
-    private let volumeHUD = SystemVolumeHUDController()
+    private let audioController: any AudioControlling
+    private let mediaKeyController: any MediaKeyControlling
+    private let volumeHUD: any VolumeHUDControlling
+    private let directoryChangeMonitor: DirectoryChangeMonitor
     private var screenshotPasteboardProviders: [ScreenshotPasteboardFileProvider] = []
 
     private static let screenshotFilenameFormatter: DateFormatter = {
@@ -53,13 +68,32 @@ final class ActionExecutor: ActionExecuting {
         return formatter
     }()
 
-    init(syntheticMarker: Int64) {
+    init(
+        syntheticMarker: Int64,
+        audioController: (any AudioControlling)? = nil,
+        mediaKeyController: (any MediaKeyControlling)? = nil,
+        volumeHUD: (any VolumeHUDControlling)? = nil,
+        directoryChangeMonitor: DirectoryChangeMonitor = DirectoryChangeMonitor()
+    ) {
         self.syntheticMarker = syntheticMarker
-        volumeHUD.prepare()
+        self.audioController = audioController ?? SystemAudioController()
+        self.mediaKeyController = mediaKeyController ?? SystemMediaKeyController()
+        self.volumeHUD = volumeHUD ?? SystemVolumeHUDController()
+        self.directoryChangeMonitor = directoryChangeMonitor
+        self.volumeHUD.prepare()
     }
 
-    func updateOverlayAppearance(_ preferences: OverlayAppearancePreferences) {
+    func updateVolumeHUDAppearance(_ preferences: OverlayAppearancePreferences) {
         volumeHUD.updateAppearance(preferences)
+    }
+
+    func updateVolumeHUDPercentageAlignment(_ alignment: SoundBarPercentageAlignment) {
+        volumeHUD.updatePercentageAlignment(alignment)
+    }
+
+    func previewVolumeHUD() {
+        // Exercise the widest percentage label in the on-screen appearance preview.
+        volumeHUD.show(level: 1)
     }
 
     func execute(_ action: ActionDefinition, screenshotStorage: ScreenshotStorageSettings) async throws {
@@ -93,11 +127,11 @@ final class ActionExecutor: ActionExecuting {
             try executeContinuousVolume(action, stepCount: 1, stepPercentage: 2)
 
         case .toggleMute:
-            let state = try SystemAudioController.toggleMute()
+            let state = try audioController.toggleMute()
             volumeHUD.show(level: state.isMuted ? 0 : Double(state.volume))
 
         case .playPause:
-            guard SystemMediaKeyController.press(.playPause) else {
+            guard mediaKeyController.pressPlayPause() else {
                 throw ActionExecutionError.eventCreationFailed
             }
 
@@ -121,13 +155,13 @@ final class ActionExecutor: ActionExecuting {
         let volume: Float32
         switch action.kind {
         case .volumeUp:
-            volume = try SystemAudioController.adjustVolume(
+            volume = try audioController.adjustVolume(
                 up: true,
                 stepCount: stepCount,
                 stepPercentage: stepPercentage
             )
         case .volumeDown:
-            volume = try SystemAudioController.adjustVolume(
+            volume = try audioController.adjustVolume(
                 up: false,
                 stepCount: stepCount,
                 stepPercentage: stepPercentage
@@ -139,6 +173,8 @@ final class ActionExecutor: ActionExecuting {
     }
 
     private func captureScreenshot(interactive: Bool, storage: ScreenshotStorageSettings) async throws {
+        let performance = KeyFlowPerformance.begin("CaptureScreenshot", using: KeyFlowPerformance.screenshots)
+        defer { performance.end() }
         guard storage.saveAdditionalCopy else {
             try postScreenshotShortcut(interactive: interactive)
             return
@@ -240,9 +276,10 @@ final class ActionExecutor: ActionExecuting {
         timeout: TimeInterval
     ) async throws -> [URL] {
         let deadline = Date().addingTimeInterval(timeout)
+        var observedDirectoryModificationDate = previousDirectoryModificationDate
         while Date() < deadline {
             let currentModificationDate = try directoryModificationDate(directory)
-            if currentModificationDate != previousDirectoryModificationDate {
+            if currentModificationDate != observedDirectoryModificationDate {
                 // The directory notification arrives while screencapture may still be
                 // finalizing multi-display files. Debounce once, then enumerate once.
                 try await Task.sleep(for: .milliseconds(120))
@@ -250,10 +287,25 @@ final class ActionExecutor: ActionExecuting {
                 if !files.isEmpty {
                     return files.sorted { $0.lastPathComponent < $1.lastPathComponent }
                 }
+                // An unrelated write woke the monitor. Advance the observation point
+                // before waiting for another kernel event so this cannot become a poll.
+                observedDirectoryModificationDate = try directoryModificationDate(directory)
             }
-            // `stat`-ing the directory is constant-time. The old implementation rebuilt
-            // the complete screenshot-file set every 200 ms while waiting.
-            try await Task.sleep(for: .milliseconds(50))
+            let remaining = max(0.001, deadline.timeIntervalSinceNow)
+            do {
+                try await directoryChangeMonitor.waitForChange(
+                    in: directory,
+                    timeout: .seconds(remaining)
+                )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch DirectoryChangeMonitorError.timedOut {
+                break
+            } catch {
+                // If a directory cannot be observed, fail explicitly rather than
+                // falling back to a CPU-waking poll loop.
+                throw ActionExecutionError.screenshotOutputUnavailable
+            }
         }
         throw ActionExecutionError.screenshotOutputUnavailable
     }

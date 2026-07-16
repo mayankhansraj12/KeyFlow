@@ -19,6 +19,18 @@ typedef void (*KFMTFrameCallback)(
     void *context
 );
 
+typedef int32_t KFMTStatus;
+enum {
+    KFMTStatusAvailable = 0,
+    KFMTStatusInvalidCallback = 1,
+    KFMTStatusFrameworkUnavailable = 2,
+    KFMTStatusRequiredSymbolsUnavailable = 3,
+    KFMTStatusDefaultDeviceUnavailable = 4,
+    KFMTStatusStartFailed = 5
+};
+
+KFMTStatus KFMTGetAvailabilityStatus(void);
+KFMTStatus KFMTGetLastStartStatus(void);
 bool KFMTIsAvailable(void);
 bool KFMTStart(KFMTFrameCallback callback, void *context);
 void KFMTStop(void);

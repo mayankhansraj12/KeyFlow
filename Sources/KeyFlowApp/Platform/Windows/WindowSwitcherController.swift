@@ -19,45 +19,39 @@ extension WindowSwitching {
 }
 
 @MainActor
+protocol WindowSwitcherPresenting: AnyObject {
+    func show(windowCount: Int, cardSize: WindowSwitcherCardSize)
+    func hide()
+}
+
+@MainActor
 final class WindowSwitcherController: WindowSwitching {
-    private let model = WindowSwitcherModel()
+    private let model: WindowSwitcherModel
     private let catalog: any WindowCataloging
-    private let thumbnails: WindowThumbnailProvider
+    private let thumbnails: any WindowThumbnailProviding
+    private let presenter: any WindowSwitcherPresenting
     private var isActive = false
     private var thumbnailTask: Task<Void, Never>?
     private var isEnabled = false
     private var preferences: WindowSwitcherPreferences = .default
 
-    private lazy var panel: NSPanel = {
-        let panel = NSPanel(
-            contentRect: .zero,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        panel.level = .popUpMenu
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = false
-        panel.ignoresMouseEvents = true
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.contentView = NSHostingView(rootView: WindowSwitcherView(model: model))
-        return panel
-    }()
-
     init(
         catalog: any WindowCataloging = SystemWindowCatalog(),
-        thumbnails: WindowThumbnailProvider = WindowThumbnailProvider()
+        thumbnails: any WindowThumbnailProviding = WindowThumbnailProvider(),
+        presenter: (any WindowSwitcherPresenting)? = nil
     ) {
+        let model = WindowSwitcherModel()
+        self.model = model
         self.catalog = catalog
         self.thumbnails = thumbnails
+        self.presenter = presenter ?? SystemWindowSwitcherPresenter(model: model)
     }
 
     func update(preferences: WindowSwitcherPreferences) {
         self.preferences = preferences
         model.updatePreferences(preferences)
         if isActive {
-            showPanel(windowCount: model.windows.count)
+            presenter.show(windowCount: model.windows.count, cardSize: preferences.cardSize)
         }
     }
 
@@ -73,6 +67,8 @@ final class WindowSwitcherController: WindowSwitching {
     }
 
     func begin(translationX: Double, translationY: Double) throws {
+        let performance = KeyFlowPerformance.begin("BeginSwitcher", using: KeyFlowPerformance.windows)
+        defer { performance.end() }
         guard isEnabled else { return }
         cancel()
         let availableWindows = catalog.availableWindows(scope: preferences.windowScope)
@@ -84,10 +80,7 @@ final class WindowSwitcherController: WindowSwitching {
         var windows = arrangement.windows
         let cachedImages = thumbnails.cachedThumbnails(for: windows)
         for index in windows.indices {
-            guard
-                let windowID = windows[index].windowID,
-                let image = cachedImages[windowID]
-            else { continue }
+            guard let image = cachedImages[windows[index].windowID] else { continue }
             windows[index].thumbnail = image
         }
         isActive = true
@@ -100,17 +93,15 @@ final class WindowSwitcherController: WindowSwitching {
         KeyFlowLog.input.info(
             "Window gesture began x=\(translationX, privacy: .public) y=\(translationY, privacy: .public) windows=\(windows.count, privacy: .public) selected=\(self.model.selectedIndex, privacy: .public)"
         )
-        showPanel(windowCount: windows.count)
+        presenter.show(windowCount: windows.count, cardSize: preferences.cardSize)
 
         let captureOrder = prioritizedCaptureOrder(
             windows: windows,
             selectedIndex: arrangement.initialIndex
         )
-        let captureTargets = captureOrder.filter { window in
-            guard let windowID = window.windowID else { return false }
-            return cachedImages[windowID] == nil
-        }
-        guard !captureTargets.isEmpty else { return }
+        // Cached thumbnails make presentation immediate; every launch still
+        // reconciles them with current ScreenCaptureKit content in the background.
+        let captureTargets = captureOrder
         thumbnailTask = Task { [weak self] in
             guard let self else { return }
             let images = await thumbnails.thumbnails(for: captureTargets) { [weak self] update in
@@ -134,6 +125,8 @@ final class WindowSwitcherController: WindowSwitching {
     }
 
     func finish(translationX: Double, translationY: Double) throws {
+        let performance = KeyFlowPerformance.begin("FinishSwitcher", using: KeyFlowPerformance.windows)
+        defer { performance.end() }
         guard isActive else { return }
         // Activate the card represented by the visible blue outline. The recognizer has
         // already delivered every meaningful movement through `update`; recomputing from a
@@ -153,10 +146,43 @@ final class WindowSwitcherController: WindowSwitching {
         closePanel()
     }
 
-    private func showPanel(windowCount: Int) {
+    private func closePanel() {
+        isActive = false
+        thumbnailTask?.cancel()
+        thumbnailTask = nil
+        presenter.hide()
+        model.clearContent()
+    }
+}
+
+@MainActor
+final class SystemWindowSwitcherPresenter: WindowSwitcherPresenting {
+    private let model: WindowSwitcherModel
+    private lazy var panel: NSPanel = {
+        let panel = NSPanel(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .popUpMenu
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+        panel.contentView = NSHostingView(rootView: WindowSwitcherView(model: model))
+        return panel
+    }()
+
+    init(model: WindowSwitcherModel) {
+        self.model = model
+    }
+
+    func show(windowCount: Int, cardSize: WindowSwitcherCardSize) {
         let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main
         guard let screen else { return }
-        let metrics = WindowSwitcherLayoutMetrics(preferences.cardSize)
+        let metrics = WindowSwitcherLayoutMetrics(cardSize)
         let grid = WindowSwitcherGridLayout(itemCount: windowCount)
         let horizontalMargin = min(72, max(32, screen.visibleFrame.width * 0.04))
         let maximumWidth = max(420, screen.visibleFrame.width - horizontalMargin)
@@ -173,7 +199,14 @@ final class WindowSwitcherController: WindowSwitching {
         panel.orderFrontRegardless()
     }
 
-    private func centeredArrangement(
+    func hide() {
+        panel.orderOut(nil)
+    }
+
+}
+
+private extension WindowSwitcherController {
+    func centeredArrangement(
         windows: [SwitchableWindow],
         initialTranslationX: Double
     ) -> (windows: [SwitchableWindow], initialIndex: Int) {
@@ -193,7 +226,7 @@ final class WindowSwitcherController: WindowSwitching {
         return (arranged, initialIndex)
     }
 
-    private func prioritizedCaptureOrder(
+    func prioritizedCaptureOrder(
         windows: [SwitchableWindow],
         selectedIndex: Int
     ) -> [SwitchableWindow] {
@@ -207,14 +240,6 @@ final class WindowSwitcherController: WindowSwitching {
             if windows.indices.contains(left) { ordered.append(windows[left]) }
         }
         return ordered
-    }
-
-    private func closePanel() {
-        isActive = false
-        thumbnailTask?.cancel()
-        thumbnailTask = nil
-        panel.orderOut(nil)
-        model.clearContent()
     }
 
 }

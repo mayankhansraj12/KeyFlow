@@ -90,11 +90,27 @@ struct PermissionsView: View {
                     "Launch KeyFlow at login",
                     isOn: Binding(get: { model.launchAtLoginEnabled }, set: { model.setLaunchAtLogin($0) })
                 )
+                Toggle(
+                    "Hide KeyFlow from Dock",
+                    isOn: Binding(
+                        get: { model.applicationPreferences.hideFromDock },
+                        set: { model.setHiddenFromDock($0) }
+                    )
+                )
+                if model.dockVisibilityRequiresRelaunch {
+                    HStack {
+                        Label("Relaunch required to update Dock visibility", systemImage: "arrow.clockwise")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Relaunch KeyFlow") { model.relaunchToApplyDockVisibility() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                }
             } header: {
                 Text("Runtime")
             } footer: {
                 Text(
-                    "Launch at login works from the packaged KeyFlow.app build. The Swift Package debug executable is intended for development only."
+                    "Raw multitouch is experimental and fails open: keyboard shortcuts remain available if its private macOS provider is unavailable. When hidden from the Dock, KeyFlow remains available from its menu-bar item."
                 )
             }
 
@@ -136,8 +152,8 @@ struct PermissionsView: View {
         switch model.multitouchStatus {
         case .starting: "Starting"
         case .running: "Running"
-        case .unavailable: "Unavailable on this Mac"
-        case .failed: "Could not start"
+        case let .unavailable(issue): "Unavailable — \(issue.userFacingDescription)"
+        case let .failed(issue): "Could not start — \(issue.userFacingDescription)"
         }
     }
 

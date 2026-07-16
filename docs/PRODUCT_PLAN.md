@@ -1,6 +1,6 @@
 # KeyFlow — Product and Engineering Plan
 
-Status: implementation started; `0.1.6` production foundation completed, 2026-07-14  
+Status: `0.1.7` local production foundation implemented; Developer ID, notarization, clean-install, and physical compatibility gates remain pending, 2026-07-16
 Working name: **KeyFlow** (replace after trademark/domain review)  
 Target: **macOS 15 and later**, Apple silicon first, Intel validated if commercial requirements justify it  
 Distribution: signed and notarized direct download, not the Mac App Store

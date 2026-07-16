@@ -21,7 +21,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Show toolchain
         run: swift --version
@@ -29,19 +32,48 @@ jobs:
       - name: Validate sources and tests
         run: ./Scripts/validate.sh
 
+      - name: Install pinned automation audit tools
+        run: |
+          ./Scripts/install-audit-tools.sh "$RUNNER_TEMP/audit-tools"
+          echo "$RUNNER_TEMP/audit-tools" >> "$GITHUB_PATH"
+
+      - name: Validate GitHub Actions workflows
+        run: actionlint
+
+      - name: Scan source and complete Git history for credentials
+        run: |
+          gitleaks dir --redact --no-banner .
+          gitleaks git --redact --no-banner .
+
+      - name: Run AddressSanitizer tests
+        run: swift test --sanitize=address
+
+      - name: Run ThreadSanitizer tests
+        run: swift test --sanitize=thread
+
+      - name: Enforce coverage floors
+        run: ./Scripts/coverage.sh
+
+      - name: Build universal release executable
+        run: ./Scripts/build-universal.sh release "$RUNNER_TEMP/KeyFlowApp-universal"
+
       - name: Build ad-hoc CI application
         env:
           CODE_SIGN_IDENTITY: "-"
-        run: ./Scripts/build-app.sh
+          KEYFLOW_EXECUTABLE: ${{ runner.temp }}/KeyFlowApp-universal
+        run: ./Scripts/build-app.sh release
 
       - name: Verify application bundle
         run: ./Scripts/verify-app.sh
+
+      - name: Qualify ZIP and DMG packaging round trip
+        run: ./Scripts/qualify-local-package.sh
 
       - name: Archive CI artifact
         run: ditto -c -k --keepParent dist/KeyFlow.app KeyFlow-ci.zip
 
       - name: Upload CI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: KeyFlow-${{ github.sha }}
           path: KeyFlow-ci.zip
