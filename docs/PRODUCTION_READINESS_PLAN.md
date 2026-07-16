@@ -99,9 +99,9 @@ notarization remain future distribution gates.
   protection, Dependabot security updates, and automatic merged-branch
   deletion.
 - [x] Document the required branch, environment, security, and release settings.
-- [x] Protect `main` with required pull requests, current CI,
-  resolved-conversation, linear-history, administrator, and no-force-push
-  rules.
+- [x] Protect `main` and `dev` with required pull requests, current CI,
+  resolved-conversation, linear-history, administrator, no-force-push, and
+  no-deletion rules.
 - [x] Create the protected `production` environment and restrict it to
   protected branches.
 - [ ] Add an independent reviewer and require one approving CODEOWNER review

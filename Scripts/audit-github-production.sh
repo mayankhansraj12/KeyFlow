@@ -3,7 +3,10 @@
 set -euo pipefail
 
 REPOSITORY="${1:-mayankhansraj12/KeyFlow}"
-DEFAULT_BRANCH="main"
+PROTECTED_BRANCHES=(
+    main
+    dev
+)
 REQUIRED_SECRETS=(
     DEVELOPER_ID_APPLICATION
     DEVELOPER_ID_P12_BASE64
@@ -24,32 +27,51 @@ command -v gh >/dev/null || fail "GitHub CLI is required"
 command -v jq >/dev/null || fail "jq is required"
 gh auth status >/dev/null 2>&1 || fail "GitHub CLI is not authenticated"
 
-BRANCH_PROTECTION="$(gh api "repos/$REPOSITORY/branches/$DEFAULT_BRANCH/protection")" \
-    || fail "$DEFAULT_BRANCH branch protection is unavailable"
-jq -e '.required_status_checks.strict == true' <<<"$BRANCH_PROTECTION" >/dev/null \
-    || fail "strict required status checks are disabled"
-jq -e '.required_status_checks.contexts | index("Build, test, and package") != null' \
-    <<<"$BRANCH_PROTECTION" >/dev/null || fail "required CI check is missing"
-jq -e '.required_pull_request_reviews != null' <<<"$BRANCH_PROTECTION" >/dev/null \
-    || fail "pull requests are not required"
-jq -e '.enforce_admins.enabled == true' <<<"$BRANCH_PROTECTION" >/dev/null \
-    || fail "branch rules do not include administrators"
-jq -e '.required_linear_history.enabled == true' <<<"$BRANCH_PROTECTION" >/dev/null \
-    || fail "linear history is not required"
-jq -e '.required_conversation_resolution.enabled == true' <<<"$BRANCH_PROTECTION" >/dev/null \
-    || fail "resolved conversations are not required"
-jq -e '.allow_force_pushes.enabled == false and .allow_deletions.enabled == false' \
-    <<<"$BRANCH_PROTECTION" >/dev/null || fail "force-push or branch deletion is allowed"
+function audit_branch_protection() {
+    local branch="$1"
+    local protection
+
+    gh api "repos/$REPOSITORY/branches/$branch" >/dev/null \
+        || fail "$branch branch is unavailable"
+    protection="$(gh api "repos/$REPOSITORY/branches/$branch/protection")" \
+        || fail "$branch branch protection is unavailable"
+    jq -e '.required_status_checks.strict == true' <<<"$protection" >/dev/null \
+        || fail "$branch does not require branches to be current before merging"
+    jq -e '.required_status_checks.contexts | index("Build, test, and package") != null' \
+        <<<"$protection" >/dev/null || fail "$branch is missing the required CI check"
+    jq -e '.required_pull_request_reviews != null' <<<"$protection" >/dev/null \
+        || fail "$branch does not require pull requests"
+    jq -e '.enforce_admins.enabled == true' <<<"$protection" >/dev/null \
+        || fail "$branch rules do not include administrators"
+    jq -e '.required_linear_history.enabled == true' <<<"$protection" >/dev/null \
+        || fail "$branch does not require linear history"
+    jq -e '.required_conversation_resolution.enabled == true' <<<"$protection" >/dev/null \
+        || fail "$branch does not require resolved conversations"
+    jq -e '.allow_force_pushes.enabled == false and .allow_deletions.enabled == false' \
+        <<<"$protection" >/dev/null \
+        || fail "$branch permits force-push or deletion"
+
+    print "Protected branch controls passed for $branch"
+}
+
+for branch in "${PROTECTED_BRANCHES[@]}"; do
+    audit_branch_protection "$branch"
+done
 
 PUSH_COLLABORATOR_COUNT="$(
     gh api --paginate "repos/$REPOSITORY/collaborators?affiliation=all&per_page=100" \
         | jq -s '[.[][] | select(.permissions.push == true or .permissions.admin == true)] | length'
 )"
 if (( PUSH_COLLABORATOR_COUNT >= 2 )); then
-    jq -e '.required_pull_request_reviews.required_approving_review_count >= 1' \
-        <<<"$BRANCH_PROTECTION" >/dev/null || fail "at least one approving review is not required"
-    jq -e '.required_pull_request_reviews.require_code_owner_reviews == true' \
-        <<<"$BRANCH_PROTECTION" >/dev/null || fail "CODEOWNER review is not required"
+    for branch in "${PROTECTED_BRANCHES[@]}"; do
+        BRANCH_PROTECTION="$(gh api "repos/$REPOSITORY/branches/$branch/protection")"
+        jq -e '.required_pull_request_reviews.required_approving_review_count >= 1' \
+            <<<"$BRANCH_PROTECTION" >/dev/null \
+            || fail "$branch does not require at least one approving review"
+        jq -e '.required_pull_request_reviews.require_code_owner_reviews == true' \
+            <<<"$BRANCH_PROTECTION" >/dev/null \
+            || fail "$branch does not require CODEOWNER review"
+    done
 else
     print "Independent review gate deferred: repository has one push-capable maintainer"
 fi
