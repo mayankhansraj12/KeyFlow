@@ -37,6 +37,20 @@ See [Building and releasing](docs/BUILDING.md) for universal and DMG builds.
 
 ## Pull request expectations
 
+KeyFlow uses a controlled promotion workflow:
+
+- Create short-lived `feature/*`, `fix/*`, `docs/*`, or `chore/*` branches
+  from `dev` and open pull requests back into `dev`.
+- Pull requests into `dev` may originate from any contributor branch or fork
+  that passes the required checks.
+- Do not open a pull request directly into `main`. Production changes reach
+  `main` only through a pull request from this repository's `dev` branch.
+- Maintainers squash or rebase focused contributor pull requests into `dev`.
+  A production promotion from `dev` to `main` uses a merge commit so the
+  integrated development history is preserved.
+- Emergency fixes follow the same route: `hotfix/*` to `dev`, then `dev` to
+  `main`.
+
 - Add or update tests for behavioral changes.
 - Keep platform effects behind injectable boundaries where practical.
 - Update user documentation when behavior, permissions, privacy, or

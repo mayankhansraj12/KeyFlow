@@ -100,8 +100,11 @@ notarization remain future distribution gates.
   deletion.
 - [x] Document the required branch, environment, security, and release settings.
 - [x] Protect `main` and `dev` with required pull requests, current CI,
-  resolved-conversation, linear-history, administrator, no-force-push, and
-  no-deletion rules.
+  resolved-conversation, administrator, no-force-push, and no-deletion rules.
+  Require linear history on integration branch `dev`; preserve release
+  promotions with merge commits on `main`.
+- [x] Require the metadata-only `Validate promotion source` check on `main` so
+  only this repository's `dev` branch can be promoted.
 - [x] Create the protected `production` environment and restrict it to
   protected branches.
 - [ ] Add an independent reviewer and require one approving CODEOWNER review

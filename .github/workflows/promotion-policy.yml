@@ -1,0 +1,46 @@
+name: Promotion Policy
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# This workflow validates event metadata only. It deliberately has no
+# repository permissions and never checks out or executes pull-request code.
+permissions: {}
+
+jobs:
+  validate-promotion-source:
+    name: Validate promotion source
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Require an in-repository dev-to-main promotion
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$BASE_REF" != "main" ]]; then
+            echo "Expected base branch 'main', received '$BASE_REF'." >&2
+            exit 1
+          fi
+
+          if [[ "$HEAD_REF" != "dev" ]]; then
+            echo "Pull requests into main must originate from the dev branch." >&2
+            echo "Received source branch: '$HEAD_REF'." >&2
+            exit 1
+          fi
+
+          if [[ "$HEAD_REPOSITORY" != "$EXPECTED_REPOSITORY" ]]; then
+            echo "Pull requests into main must originate from this repository's dev branch." >&2
+            echo "Received source repository: '$HEAD_REPOSITORY'." >&2
+            exit 1
+          fi
+
+          echo "Validated promotion: $EXPECTED_REPOSITORY:dev -> main"
