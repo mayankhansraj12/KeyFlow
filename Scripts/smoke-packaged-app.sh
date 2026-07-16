@@ -39,7 +39,7 @@ for _ in {1..30}; do
     sleep 0.1
 done
 
-if rg -i "fatal error|abort trap|segmentation fault|dyld.*(missing|not loaded)" "$LOG_FILE"; then
+if grep -Ei "fatal error|abort trap|segmentation fault|dyld.*(missing|not loaded)" "$LOG_FILE"; then
     print -u2 "Packaged app emitted a fatal startup diagnostic"
     exit 1
 fi

@@ -64,17 +64,17 @@ RAW_MULTITOUCH_STABILITY="$(/usr/libexec/PlistBuddy -c 'Print :RawMultitouchStab
 [[ "$AUTOMATIC_UPDATES" == "false" ]] || fail "automatic updates are not qualified"
 [[ "$RAW_MULTITOUCH_STABILITY" == "experimental" ]] || fail "raw multitouch must remain experimental"
 
-if rg -n '^import (AppKit|SwiftUI|ApplicationServices|CoreGraphics|ScreenCaptureKit|ServiceManagement)$' \
+if grep -REn '^import (AppKit|SwiftUI|ApplicationServices|CoreGraphics|ScreenCaptureKit|ServiceManagement)$' \
     "$ROOT/Sources/KeyFlowCore"; then
     fail "KeyFlowCore imports a platform framework"
 fi
 
 SCHEMA="$(sed -nE 's/.*currentSchemaVersion = ([0-9]+).*/\1/p' "$ROOT/Sources/KeyFlowCore/Models.swift")"
 [[ -n "$SCHEMA" ]] || fail "could not determine current configuration schema"
-rg -q "Schema-${SCHEMA} JSON" "$ROOT/docs/IMPLEMENTATION_STATUS.md" \
+grep -qF "Schema-${SCHEMA} JSON" "$ROOT/docs/IMPLEMENTATION_STATUS.md" \
     || fail "implementation status does not document schema $SCHEMA"
 
-if git -C "$ROOT" ls-files | rg -q '(^|/)(\.DS_Store|\.env|\.local-signing)(/|$)|\.(cer|key|p8|p12)$'; then
+if git -C "$ROOT" ls-files | grep -Eq '(^|/)(\.DS_Store|\.env|\.local-signing)(/|$)|\.(cer|key|p8|p12)$'; then
     fail "sensitive or generated material is tracked"
 fi
 
