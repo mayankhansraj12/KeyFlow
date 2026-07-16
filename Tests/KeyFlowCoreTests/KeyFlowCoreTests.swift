@@ -26,7 +26,7 @@ struct KeyFlowCoreTests {
             revision: 7,
             mappings: [mapping],
             gestureSettings: gestureSettings,
-            applicationPreferences: .init(hideFromDock: true, menuBarIconStyle: .controls)
+            applicationPreferences: .init(hideFromDock: true, menuBarIconStyle: .cursorClick)
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -37,7 +37,7 @@ struct KeyFlowCoreTests {
 
         #expect(decoded == configuration)
         #expect(decoded.applicationPreferences.hideFromDock)
-        #expect(decoded.applicationPreferences.menuBarIconStyle == .controls)
+        #expect(decoded.applicationPreferences.menuBarIconStyle == .cursorClick)
     }
 
     @Test("Every window switcher size preset persists through configuration encoding")
@@ -244,6 +244,28 @@ struct KeyFlowCoreTests {
 
         #expect(migrated.schemaVersion == KeyFlowConfiguration.currentSchemaVersion)
         #expect(migrated.applicationPreferences.hideFromDock)
+        #expect(migrated.applicationPreferences.menuBarIconStyle == .touch)
+    }
+
+    @Test("Schema nineteen replaces unrelated menu-bar icons")
+    func schemaNineteenMenuBarIconMigration() throws {
+        let data = Data(
+            """
+            {
+              "schemaVersion": 19,
+              "revision": 13,
+              "mappings": [],
+              "applicationPreferences": {
+                "hideFromDock": false,
+                "menuBarIconStyle": "controls"
+              }
+            }
+            """.utf8
+        )
+
+        let migrated = try ConfigurationMigrator.decode(data, using: JSONDecoder())
+
+        #expect(migrated.schemaVersion == KeyFlowConfiguration.currentSchemaVersion)
         #expect(migrated.applicationPreferences.menuBarIconStyle == .touch)
     }
 

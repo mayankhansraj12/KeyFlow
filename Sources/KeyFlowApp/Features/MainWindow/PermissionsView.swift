@@ -220,12 +220,12 @@ private struct MenuBarIconPicker: View {
 
     private let columns = Array(
         repeating: GridItem(.flexible(minimum: 74), spacing: 10),
-        count: MenuBarIconStyle.allCases.count
+        count: MenuBarIconStyle.selectableCases.count
     )
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(MenuBarIconStyle.allCases) { style in
+            ForEach(MenuBarIconStyle.selectableCases) { style in
                 let isSelected = style == selection
                 Button {
                     select(style)

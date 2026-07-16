@@ -5,6 +5,7 @@ import CoreAudio
 import CoreGraphics
 import Foundation
 import KeyFlowCore
+import SwiftUI
 import Testing
 
 @testable import KeyFlowApp
@@ -14,7 +15,11 @@ import Testing
 struct AppModelTests {
     @Test("Every menu-bar icon choice resolves to a native template symbol")
     func menuBarIconSymbolsResolve() {
-        for style in MenuBarIconStyle.allCases {
+        #expect(
+            MenuBarIconStyle.selectableCases
+                == [.touch, .pointer, .pointUp, .cursorClick, .cursorRays]
+        )
+        for style in MenuBarIconStyle.selectableCases {
             let image = NSImage(
                 systemSymbolName: style.systemSymbolName,
                 accessibilityDescription: style.displayName
@@ -45,6 +50,31 @@ struct AppModelTests {
         #expect(percentageLabel?.alignment == .center)
         view.applyPercentageAlignment(.right)
         #expect(percentageLabel?.alignment == .right)
+    }
+
+    @Test("Primary configuration views render at production and minimum sizes")
+    func primaryConfigurationViewsRender() async {
+        let dependencies = makeDependencies()
+        await dependencies.model.startIfNeeded()
+
+        let productionSize = NSSize(width: 1_280, height: 820)
+        let minimumSize = NSSize(width: 860, height: 560)
+        let views: [AnyView] = [
+            AnyView(GestureSettingsView().environmentObject(dependencies.model)),
+            AnyView(WindowSwitcherSettingsView().environmentObject(dependencies.model)),
+            AnyView(MappingsView().environmentObject(dependencies.model)),
+        ]
+
+        for view in views {
+            for size in [productionSize, minimumSize] {
+                let host = NSHostingView(rootView: view)
+                host.frame = NSRect(origin: .zero, size: size)
+                host.layoutSubtreeIfNeeded()
+
+                #expect(host.fittingSize.width > 0)
+                #expect(host.fittingSize.height > 0)
+            }
+        }
     }
 
     @Test("Raw touch callback ignores pointer frames and forwards one gesture release")
@@ -660,6 +690,23 @@ struct AppModelTests {
         #expect(model.mappings[0].action.value == "com.apple.calculator")
         #expect(model.mappings[0].name == "Open Calculator")
         #expect(await store.savedConfigurations().last?.mappings[0].action.value == "com.apple.calculator")
+    }
+
+    @Test("Choosing an application always replaces legacy shortcut names")
+    func applicationSelectionOwnsShortcutName() async {
+        let mapping = Mapping(name: "My custom label")
+        let store = MockConfigurationStore(configuration: .init(mappings: [mapping]))
+        let dependencies = makeDependencies(store: store)
+        let model = dependencies.model
+        await model.startIfNeeded()
+
+        let calculatorURL = URL(fileURLWithPath: "/System/Applications/Calculator.app")
+        model.setApplication(calculatorURL, forMappingID: mapping.id)
+
+        #expect(model.mappings[0].name == "Open Calculator")
+        await eventually {
+            await store.savedConfigurations().last?.mappings[0].name == "Open Calculator"
+        }
     }
 
     @Test("Fixed gesture features do not create or delete mappings")

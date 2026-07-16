@@ -172,12 +172,16 @@ private struct ShortcutRow: View {
         !MappingValidator.validate(mapping).isEmpty
     }
 
+    private var title: String {
+        application.map { "Open \($0.name)" } ?? "Open Application"
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             applicationIcon(size: 30)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(mapping.name)
+                Text(title)
                     .font(.callout.weight(.medium))
                     .lineLimit(1)
                 Text(application?.name ?? "Choose an application")
@@ -253,6 +257,15 @@ private struct ShortcutEditor: View {
         model.mappings.first { $0.id == mappingID }
     }
 
+    private func title(for mapping: Mapping) -> String {
+        guard mapping.action.kind == .launchApplication,
+            let application = ApplicationSelection.resolve(storedValue: mapping.action.value)
+        else {
+            return "Open Application"
+        }
+        return "Open \(application.name)"
+    }
+
     var body: some View {
         if let mapping {
             ScrollView {
@@ -275,7 +288,7 @@ private struct ShortcutEditor: View {
         HStack(spacing: 14) {
             applicationIcon(mapping, size: 46)
             VStack(alignment: .leading, spacing: 3) {
-                Text(mapping.name)
+                Text(title(for: mapping))
                     .font(.title2.weight(.semibold))
                     .lineLimit(1)
                 Text("Open an application with a global keyboard shortcut")
@@ -295,17 +308,6 @@ private struct ShortcutEditor: View {
     private func shortcutSettings(_ mapping: Mapping) -> some View {
         ShortcutSection(title: "Shortcut", systemImage: "keyboard") {
             VStack(spacing: 0) {
-                ShortcutSettingRow(
-                    title: "Name",
-                    detail: "Shown in the sidebar and activity history."
-                ) {
-                    TextField("Shortcut name", text: binding(\.name, fallback: mapping.name))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 280)
-                }
-
-                Divider().padding(.vertical, 14)
-
                 ShortcutSettingRow(
                     title: "Keyboard combination",
                     detail: "Click the control, then press the keys you want to use."
