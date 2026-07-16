@@ -84,7 +84,7 @@ Checkpoint: the release checklist has evidence for every manual gate and SHA-256
 - [x] Add CODEOWNERS, a production-risk PR template, and weekly GitHub Actions/Swift Dependabot configuration.
 - [x] Add an authenticated audit for branch protection, environment secret names, private vulnerability reporting, secret scanning, and push protection.
 - [x] Enable and verify GitHub secret scanning and push protection.
-- [ ] Enable private vulnerability reporting and Dependabot security updates. **Repository owner action required.**
+- [x] Enable and API-verify vulnerability alerts, Dependabot security updates, and private vulnerability reporting.
 - [x] Run the complete hosted CI workflow on source commit `ca685aa`; run 29461348699 passed.
 - [ ] Run the non-publishing release workflow on the frozen candidate. **Protected environment and release credentials required.**
 
@@ -93,7 +93,7 @@ Checkpoint: the draft PR and successful CI run reference the same source commit.
 ## Phase 9 — Operations, privacy, and support
 
 - [x] Define HTTPS privacy/support URLs and expose them from the menu-bar UI; they resolve through the public repository after the candidate is pushed.
-- [ ] Enable GitHub private vulnerability reporting or configure another private security-reporting channel. **Repository owner action required.**
+- [x] Enable and verify GitHub private vulnerability reporting.
 - [x] Document diagnostic collection, retention, redaction, incident response, rollback, and release ownership.
 - [x] Finalize candidate release notes, known limitations, compatibility status, and support boundary.
 
