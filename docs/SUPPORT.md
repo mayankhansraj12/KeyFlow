@@ -1,15 +1,15 @@
 # Support
 
-## Supported beta candidate
+## Supported release
 
-KeyFlow `0.1.7` is a manually updated, open-source macOS beta. Community
+KeyFlow `0.1.7` is a manually updated, open-source macOS release. Community
 support covers installation, permissions, keyboard app-launch shortcuts, fixed
 gesture features, the Sound Bar, screenshot behavior, the window switcher,
 configuration recovery, and privacy-redacted diagnostics on macOS 15 or later.
 
 Raw multitouch is experimental until the physical matrix is complete.
 Automatic updates, Mac App Store distribution, arbitrary scripts, imports,
-and the wider BetterTouchTool-scale roadmap are outside this candidate's
+and the wider BetterTouchTool-scale roadmap are outside this release's
 support boundary.
 
 ## Requesting help
@@ -27,4 +27,4 @@ containing private content, signing material, or security vulnerabilities in a
 public issue. Report vulnerabilities through
 [GitHub private vulnerability reporting](https://github.com/mayankhansraj12/KeyFlow/security/advisories/new).
 
-This is a community-maintained beta and has no guaranteed response time.
+This is a community-maintained release and has no guaranteed response time.

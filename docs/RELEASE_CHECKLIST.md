@@ -21,7 +21,8 @@
 - `Scripts/qualify-local-package.sh` passes before the credentialed release build.
 - CI passes on the exact release commit.
 - Privacy documentation and manifest match current behavior.
-- Bundled `ReleasePolicy.plist` identifies this candidate as `manual-beta` with automatic updates disabled.
+- Bundled `ReleasePolicy.plist` identifies the release as `manual` with
+  automatic updates disabled.
 - `NSScreenCaptureUsageDescription`, product license, and third-party notices are present in the packaged app.
 - Schema migration and backup recovery tests pass.
 - AddressSanitizer and ThreadSanitizer test runs pass on the release commit.
@@ -68,4 +69,5 @@ The script must complete all of these automatically:
 - Apple Developer membership, registered bundle identifier, certificate, and notarization service availability.
 - Physical Intel/Apple-silicon and trackpad hardware coverage.
 - Hosting, privacy-policy URL, support channel, and release notes.
-- An automatic-update signing key and feed; this candidate is explicitly a manually updated beta until the gates in `UPDATE_POLICY.md` pass.
+- An automatic-update signing key and feed; releases remain manually updated
+  until the gates in `UPDATE_POLICY.md` pass.

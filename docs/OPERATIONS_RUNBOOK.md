@@ -7,7 +7,8 @@
 - **Security owner:** receives private reports, coordinates disclosure, rotates exposed credentials, and decides emergency withdrawal.
 - **Compatibility owner:** signs off the physical macOS/CPU/trackpad matrix and raw-provider deny list.
 
-One person may temporarily hold multiple beta roles, but broad production release should separate author, reviewer, and release approver.
+One person may temporarily hold multiple release roles, but broad production
+distribution should separate author, reviewer, and release approver.
 
 ## Diagnostics and privacy
 
@@ -19,7 +20,10 @@ Support must request the minimum report needed, use access-controlled storage, r
 
 1. Triage severity and stop publishing.
 2. For stuck/suppressed input, direct the user to Pause All Mappings or quit KeyFlow; raw-provider failures must remain fail-open.
-3. For a private-framework regression, add the OS build to the bundled deny list, test keyboard fallback, and issue a signed beta replacement. After remote compatibility manifests are qualified, publish a signed disable decision as well.
+3. For a private-framework regression, add the OS build to the bundled deny
+   list, test keyboard fallback, and issue a signed replacement release. After
+   remote compatibility manifests are qualified, publish a signed disable
+   decision as well.
 4. For credential exposure, revoke/rotate the certificate, API key, token, or update key; remove the secret from history only through an owner-reviewed incident procedure; rescan full history.
 5. For privacy/security impact, preserve minimal evidence, notify the security owner, assess affected versions, coordinate disclosure, and document corrective tests.
 6. Record timeline, affected builds, decision owner, user guidance, and follow-up actions without including private input data.
@@ -30,7 +34,7 @@ Support must request the minimum report needed, use access-controlled storage, r
 - Prefer a forward-fixed build with a higher build number. Do not instruct users to install a build that cannot read their current schema.
 - If no safe forward fix exists, withdraw the release, mark it unavailable, publish a concise advisory, and keep keyboard-only recovery instructions accessible.
 - Never reuse or move a published tag. Every replacement artifact has a new build number and immutable checksums.
-- Automatic rollback remains unsupported while the release channel is manual-beta.
+- Automatic rollback remains unsupported while the release channel is manual.
 
 ## Evidence retention
 

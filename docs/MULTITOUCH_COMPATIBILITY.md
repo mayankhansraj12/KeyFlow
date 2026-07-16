@@ -46,4 +46,8 @@ Required outcomes:
 
 Do not label raw gestures stable until the matrix passes on physical hardware. A macOS beta or update that changes the private ABI blocks the raw provider for that OS until revalidated. Keyboard shortcuts and public gestures may still ship with raw gestures marked unavailable.
 
-The signed compatibility-manifest protocol is specified in `MULTITOUCH_COMPATIBILITY_MANIFEST.md`, but its network client and release service are intentionally not part of this manually updated beta. Until that system is implemented and qualified, raw gestures remain explicitly experimental.
+The signed compatibility-manifest protocol is specified in
+`MULTITOUCH_COMPATIBILITY_MANIFEST.md`, but its network client and release
+service are intentionally not part of this manually updated release. Until
+that system is implemented and qualified, raw gestures remain explicitly
+experimental.

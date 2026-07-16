@@ -37,7 +37,7 @@ CODE_SIGN_IDENTITY="Apple Development: Example (TEAMID)" \
 
 ```sh
 ./Scripts/build-local-dmg.sh
-open release/KeyFlow-0.1.7-8.dmg
+open release/KeyFlow-0.1.7.dmg
 ```
 
 The pipeline:
@@ -57,7 +57,7 @@ build-time tools and are not shipped inside KeyFlow.
 An optional first argument selects another output path:
 
 ```sh
-./Scripts/build-local-dmg.sh release/KeyFlow-preview.dmg
+./Scripts/build-local-dmg.sh release/KeyFlow-custom.dmg
 ```
 
 ## Credentialed release pipeline

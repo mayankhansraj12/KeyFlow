@@ -1,10 +1,18 @@
 # Update and release-channel policy
 
-## Current candidate
+## Current release
 
-KeyFlow `0.1.7` is a **manually updated beta**. It contains no update client, makes no update-feed request, and does not claim silent or automatic security updates. The bundled `ReleasePolicy.plist` is the machine-readable source of this contract; packaging and audit scripts reject an artifact that contradicts it.
+KeyFlow `0.1.7` is a **manually updated release**. It contains no update
+client, makes no update-feed request, and does not claim silent or automatic
+security updates. The bundled `ReleasePolicy.plist` is the machine-readable
+source of this contract; packaging and audit scripts reject an artifact that
+contradicts it.
 
-Users update this beta by obtaining a newer signed and notarized KeyFlow release from the release owner, quitting KeyFlow, and replacing the application bundle. A newer build must retain the `app.keyflow.desktop` bundle identifier and configuration schema migration path. Downgrades are unsupported because a prior build may not understand a newer configuration schema.
+Users update KeyFlow by obtaining a newer release, quitting KeyFlow, and
+replacing the application bundle. A newer build must retain the
+`app.keyflow.desktop` bundle identifier and configuration schema migration
+path. Downgrades are unsupported because a prior build may not understand a
+newer configuration schema.
 
 ## Broad-release architecture
 
@@ -32,4 +40,5 @@ The update signing key, HTTPS feed, and prior notarized artifact are release-own
 7. unchanged bundle identity, TCC registrations, and login item;
 8. recovery using the retained previous artifact.
 
-Until that evidence exists, `ReleasePolicy.plist` must remain `manual-beta` with automatic updates disabled.
+Until that evidence exists, `ReleasePolicy.plist` must remain `manual` with
+automatic updates disabled.

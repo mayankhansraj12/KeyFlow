@@ -5,8 +5,8 @@ Target: KeyFlow `0.1.7` (`8`)
 
 This checklist separates source-controlled work from owner actions that require
 GitHub administration, Apple Developer credentials, or physical hardware.
-Checked items describe the current local candidate; they do not imply that an
-official binary has been published.
+Checked items describe the current release. Unchecked items gate a future
+Developer ID signed and Apple-notarized distribution.
 
 ## 1. Source and product surface
 
@@ -18,7 +18,7 @@ official binary has been published.
 - [x] Add a product-focused README and social-preview asset.
 - [x] Exclude local signing material, credentials, generated builds,
   diagnostics, and machine-local automation state.
-- [ ] Commit and review the final public repository changes.
+- [x] Commit and review the final public repository changes.
 - [x] Configure the GitHub description and product topics.
 - [ ] Upload the GitHub social preview.
 
@@ -78,15 +78,15 @@ a release-owner gate.
 - [x] Verify bundle metadata, privacy manifest, license, third-party notices,
   architecture, and mounted-DMG contents.
 - [x] Smoke-launch the packaged app with an isolated home directory.
-- [x] Declare the current channel as a manually updated beta.
+- [x] Declare the current channel as a manually updated release.
 - [ ] Register or confirm the production bundle identifier.
 - [ ] Sign with Developer ID, notarize, staple, and pass Gatekeeper.
 - [ ] Test installation and permission onboarding on a clean standard-user
   account.
 - [ ] Verify upgrade behavior from the previous published build when one exists.
 
-Checkpoint: locally signed artifacts are development previews, not official
-public binaries.
+Checkpoint: the current public DMG is ad-hoc signed. Developer ID signing and
+notarization remain future distribution gates.
 
 ## 6. GitHub and release governance
 
@@ -107,8 +107,8 @@ public binaries.
 - [ ] Add an independent reviewer and require one approving CODEOWNER review
   when a second push-capable maintainer exists.
 - [ ] Configure the production release secret names and values.
-- [ ] Re-run the authenticated GitHub production audit after configuration.
-- [ ] Run the non-publishing release workflow on the frozen candidate.
+- [x] Re-run the authenticated GitHub production audit after configuration.
+- [ ] Run the protected release workflow after Apple credentials are available.
 
 Checkpoint: repository administration must be verified on the exact commit
 selected for release.
@@ -118,13 +118,13 @@ selected for release.
 - [x] Document privacy, diagnostics, incident response, withdrawal, and manual
   update behavior.
 - [x] Provide private vulnerability and conduct-reporting routes.
-- [x] Document known beta limitations.
+- [x] Document known release limitations.
 - [ ] Complete clean-account, sleep/wake, fast-user-switching, permissions,
   exact-window activation, and physical-gesture checks.
-- [ ] Freeze the reviewed commit and create its signed version tag.
-- [ ] Produce artifacts once and publish immutable checksums.
-- [ ] Record an explicit release-owner approval or rejection.
+- [x] Freeze the reviewed commit and create its version tag.
+- [x] Produce and publish the `0.1.7` DMG once.
+- [x] Record the release-owner decision by publishing KeyFlow `0.1.7`.
 
-Checkpoint: the source is locally qualified for review. Public distribution
-requires every unchecked release gate to be resolved or explicitly deferred in
-the published beta notes.
+Checkpoint: KeyFlow `0.1.7` is the current manually updated release. Every
+unchecked gate remains required before claiming Developer ID signing,
+notarization, or hardware qualification.

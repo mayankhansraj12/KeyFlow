@@ -2,7 +2,7 @@
 
 All notable user-facing and production changes are recorded here.
 
-## Unreleased — 0.1.7 (build 8) candidate
+## 0.1.7 — 2026-07-16
 
 ### Added
 
@@ -21,8 +21,8 @@ All notable user-facing and production changes are recorded here.
 
 ### Distribution status
 
-- Prepared KeyFlow for open-source publication under the MIT License.
-- The source and locally signed universal application are validated.
-- Official binaries still require Developer ID signing, notarization,
-  clean-install qualification, and the physical multitouch gates documented in
+- Published KeyFlow as open source under the MIT License.
+- Published the universal `KeyFlow-0.1.7.dmg` through GitHub Releases.
+- The free DMG is not Apple-notarized; Developer ID signing, notarization, and
+  the remaining physical multitouch gates are documented in
   `docs/RELEASE_CHECKLIST.md`.

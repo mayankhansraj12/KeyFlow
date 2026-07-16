@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mayankhansraj12/KeyFlow/releases">Releases</a>
+  <a href="https://github.com/mayankhansraj12/KeyFlow/releases/download/v0.1.7/KeyFlow-0.1.7.dmg">Download KeyFlow 0.1.7</a>
   ·
   <a href="docs/GETTING_STARTED.md">Getting started</a>
   ·
@@ -31,9 +31,9 @@ fail safely, and built with SwiftUI, AppKit, Quartz, Accessibility, Core Audio,
 and ScreenCaptureKit.
 
 > [!IMPORTANT]
-> KeyFlow `0.1.7` is an early-access beta. Keyboard shortcuts are ready for
-> regular testing. Raw multi-finger gestures use an isolated compatibility
-> layer built on an undocumented macOS framework and remain experimental.
+> KeyFlow `0.1.7` is the current release. Raw multi-finger gestures use an
+> isolated compatibility layer built on an undocumented macOS framework and
+> remain experimental.
 
 ## Highlights
 
@@ -56,13 +56,11 @@ See the complete [feature guide](docs/FEATURES.md) and
 
 ## Install
 
-Official DMGs will be published on
-[GitHub Releases](https://github.com/mayankhansraj12/KeyFlow/releases). Until
-the first release is published, build the app or installer from source using
-the instructions below.
+Download [KeyFlow 0.1.7 for macOS](https://github.com/mayankhansraj12/KeyFlow/releases/download/v0.1.7/KeyFlow-0.1.7.dmg),
+open the DMG, and drag KeyFlow into Applications.
 
-For community-built DMGs that are not Apple-notarized, macOS may require you to
-Control-click KeyFlow and choose **Open**, or approve it from
+This free release is not Apple-notarized. macOS may require you to
+Control-click KeyFlow and choose **Open**, or approve it under
 **System Settings → Privacy & Security**.
 
 The first launch explains the permissions needed for enabled features. See
@@ -88,7 +86,7 @@ Build the universal drag-to-Applications DMG:
 
 ```sh
 ./Scripts/build-local-dmg.sh
-open release/KeyFlow-0.1.7-8.dmg
+open release/KeyFlow-0.1.7.dmg
 ```
 
 The first DMG build downloads two small, hash-pinned open-source build packages

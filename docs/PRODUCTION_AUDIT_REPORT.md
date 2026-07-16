@@ -1,22 +1,21 @@
 # Production audit report
 
 Updated: 2026-07-16
-Candidate: KeyFlow `0.1.7` (`8`)
+Release: KeyFlow `0.1.7` (`8`)
 Configuration schema: `20`
 
 > [!NOTE]
-> This is public maintainer evidence for the current beta candidate. User
+> This is public maintainer evidence for the current release. User
 > documentation starts at the [documentation index](README.md).
 
 ## Executive status
 
-The source candidate is locally qualified for review as a manually updated,
-open-source beta. It is not an officially signed, notarized, or
-hardware-qualified public binary.
+KeyFlow `0.1.7` is published as a manually updated, open-source release. Its
+free DMG is ad-hoc signed rather than Developer ID signed or Apple-notarized.
 
-All automated local gates pass. Remaining release gates require GitHub
-repository administration, Apple Developer credentials, clean-account
-testing, physical trackpad/CPU coverage, or release-owner approval.
+All automated local gates pass. The remaining production-distribution gates
+require Apple Developer credentials, clean-account testing, physical
+trackpad/CPU coverage, or release-owner approval.
 
 ## Current evidence
 
@@ -35,26 +34,23 @@ testing, physical trackpad/CPU coverage, or release-owner approval.
 | Performance | Partial | Automated hot-path budgets pass; active physical gesture, screenshot, and switcher Instruments traces remain required |
 | Public repository metadata | Pass | Description, product topics, Issues, private vulnerability reporting, secret scanning, push protection, Dependabot security updates, and automatic merged-branch deletion are enabled |
 | Repository protection | Pass for one maintainer | `main` requires pull requests, current CI, resolved conversations, linear history, and administrator compliance; force-push and deletion are blocked |
-| Release governance | Blocked externally | The protected `production` environment exists, but release secrets, an independent reviewer, and the social-preview upload remain unavailable |
+| Release governance | Partial | The stable GitHub release is public; the protected `production` environment still lacks Apple release secrets and an independent reviewer |
 | Signing and notarization | Blocked externally | Developer ID identity, registered bundle ID, notarization credentials, and release-owner approval are required |
-| Automatic updates | Deliberately deferred | Bundled release policy identifies this candidate as `manual-beta`; no update client or feed is claimed |
+| Automatic updates | Deliberately deferred | Bundled release policy identifies this release as `manual`; no update client or feed is claimed |
 | Open-source licensing | Pass locally | Project source is prepared under MIT; yabai-derived code and build-tool notices are recorded |
 
-## Publication blockers
+## Remaining production-distribution gates
 
-1. Commit and review the final documentation, license, installer tooling, and
-   repository community files.
-2. Upload the social preview, add the protected release secrets, and add an
+1. Upload the social preview, add the protected release secrets, and add an
    independent approval gate when a second maintainer becomes available, as
    described in [GitHub production controls](GITHUB_PRODUCTION_CONTROLS.md).
-3. Complete the physical compatibility matrix and active-interaction
+2. Complete the physical compatibility matrix and active-interaction
    performance traces.
-4. Build a Developer ID signed, notarized, stapled candidate and verify it on a
+3. Build a Developer ID signed, notarized, stapled artifact and verify it on a
    clean standard-user account.
-5. Freeze the reviewed commit, create its signed version tag, publish immutable
-   checksums, and record the release decision.
+4. Publish a future notarized release from the protected production workflow.
 
-## Accepted beta limitations
+## Accepted release limitations
 
 - Raw multi-finger gestures remain experimental.
 - Distribution is direct download rather than the Mac App Store.
