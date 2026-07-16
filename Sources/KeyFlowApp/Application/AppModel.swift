@@ -131,9 +131,7 @@ final class AppModel: ObservableObject {
                 kind: .launchApplication,
                 value: selection.bundleIdentifier ?? selection.url.path
             )
-            if mapping.name == "Open Application" || mapping.name == "New Shortcut" {
-                mapping.name = "Open \(selection.name)"
-            }
+            mapping.name = "Open \(selection.name)"
         }
     }
 

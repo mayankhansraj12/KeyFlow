@@ -851,7 +851,7 @@ public struct GestureSettings: Codable, Equatable, Sendable {
 }
 
 public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 19
+    public static let currentSchemaVersion = 20
 
     public var schemaVersion: Int
     public var revision: Int
@@ -922,30 +922,50 @@ public struct KeyFlowConfiguration: Codable, Equatable, Sendable {
 
 public enum MenuBarIconStyle: String, Codable, CaseIterable, Identifiable, Sendable {
     case touch
+    case pointer
+    case pointUp
+    case cursorClick
+    case cursorRays
+
+    // Retained only so schema 19 configurations can still be decoded before
+    // the migrator replaces these unrelated choices with the touch mark.
     case command
     case keyboard
     case controls
-    case pointer
+
+    public static let selectableCases: [MenuBarIconStyle] = [
+        .touch,
+        .pointer,
+        .pointUp,
+        .cursorClick,
+        .cursorRays,
+    ]
 
     public var id: String { rawValue }
 
     public var displayName: String {
         switch self {
         case .touch: "Touch"
+        case .pointer: "Point"
+        case .pointUp: "Point Up"
+        case .cursorClick: "Click"
+        case .cursorRays: "Cursor"
         case .command: "Command"
         case .keyboard: "Keyboard"
         case .controls: "Controls"
-        case .pointer: "Pointer"
         }
     }
 
     public var systemSymbolName: String {
         switch self {
         case .touch: "hand.tap.fill"
+        case .pointer: "hand.point.up.left.fill"
+        case .pointUp: "hand.point.up.fill"
+        case .cursorClick: "cursorarrow.click.2"
+        case .cursorRays: "cursorarrow.rays"
         case .command: "command.circle.fill"
         case .keyboard: "keyboard"
         case .controls: "slider.horizontal.3"
-        case .pointer: "hand.point.up.left.fill"
         }
     }
 }

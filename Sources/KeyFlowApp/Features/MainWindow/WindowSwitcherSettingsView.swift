@@ -6,17 +6,17 @@ struct WindowSwitcherSettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 20) {
                 pageHeader
                 SwitcherAppearancePreview(
                     preferences: model.windowSwitcherPreferences,
                     appearance: model.windowSwitcherPreferences.appearance
                 )
-                settingsPanel
+                settingsLayout
             }
-            .frame(maxWidth: 900, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 18)
+            .frame(maxWidth: 960, alignment: .leading)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 26)
             .frame(maxWidth: .infinity)
         }
         .defaultScrollAnchor(.top)
@@ -24,97 +24,216 @@ struct WindowSwitcherSettingsView: View {
     }
 
     private var pageHeader: some View {
-        HStack(alignment: .top, spacing: 16) {
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: "rectangle.3.group.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 44, height: 44)
+                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 11))
             VStack(alignment: .leading, spacing: 5) {
                 Text("Window Switcher")
                     .font(.title2.weight(.semibold))
-                Text("Shape the overlay that appears during your four-finger horizontal swipe.")
+                Text("Move through open windows in any direction with a four-finger swipe.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
-            Toggle("Enabled", isOn: windowSwitcherEnabledBinding)
+            Spacer(minLength: 16)
+            Text(model.gestureSettings.interactiveWindowSwitcherEnabled ? "On" : "Off")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(model.gestureSettings.interactiveWindowSwitcherEnabled ? .green : .secondary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(.quaternary, in: Capsule())
+            Toggle("Window Switcher", isOn: windowSwitcherEnabledBinding)
+                .labelsHidden()
                 .toggleStyle(.switch)
             Button("Restore Defaults") {
                 model.resetWindowSwitcherPreferences()
             }
             .disabled(model.windowSwitcherPreferences == .default)
         }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.65), lineWidth: 1)
+        }
     }
 
-    private var settingsPanel: some View {
+    private var settingsLayout: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 10) {
-                layoutSettings
-                previewSettings
-                appearanceSettings
+            HStack(alignment: .top, spacing: 16) {
+                VStack(spacing: 16) {
+                    layoutSettings
+                    windowSettings
+                }
+                VStack(spacing: 16) {
+                    appearanceSettings
+                    detailSettings
+                }
             }
-            VStack(spacing: 10) {
+            VStack(spacing: 16) {
                 layoutSettings
-                previewSettings
+                windowSettings
                 appearanceSettings
+                detailSettings
             }
         }
     }
 
     private var layoutSettings: some View {
-        settingsCard(title: "Layout", icon: "rectangle.resize") {
-            settingLabel("Card size", detail: "Sets the overall scale of the switcher.")
-            Picker("Card size", selection: cardSizeBinding) {
-                ForEach(WindowSwitcherCardSize.allCases) { size in
-                    Text(size.displayName).tag(size)
+        settingsCard(
+            title: "Layout & Movement",
+            detail: "Control the overlay scale and tracking response.",
+            icon: "rectangle.resize"
+        ) {
+            settingRow(title: "Card size", detail: "Scale each window preview.") {
+                Picker("Card size", selection: cardSizeBinding) {
+                    ForEach(WindowSwitcherCardSize.allCases) { size in
+                        Text(size.displayName).tag(size)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 235)
+            }
+
+            Divider().padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 9) {
+                settingLabel("Movement speed", detail: navigationSpeedHelp)
+                HStack(spacing: 10) {
+                    Text("0.25×")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Slider(value: navigationSpeedBinding, in: 0.25...2.5, step: 0.05)
+                    Text("2.5×")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(model.windowSwitcherPreferences.navigationSpeed, specifier: "%.2f")×")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 48, alignment: .trailing)
                 }
             }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-
-            Divider()
-                .padding(.vertical, 2)
-
-            settingLabel("Switcher speed", detail: navigationSpeedHelp)
-            HStack(spacing: 10) {
-                Text("0.25×")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Slider(value: navigationSpeedBinding, in: 0.25...2.5, step: 0.05)
-                Text("2.5×")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("\(model.windowSwitcherPreferences.navigationSpeed, specifier: "%.2f")×")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .frame(width: 48, alignment: .trailing)
-            }
-
         }
     }
 
-    private var previewSettings: some View {
-        settingsCard(title: "Window Previews", icon: "macwindow") {
-            settingLabel("Windows shown", detail: windowScopeHelp)
-            Picker("Windows shown", selection: windowScopeBinding) {
-                ForEach(WindowSwitcherWindowScope.allCases) { scope in
-                    Text(scope.displayName).tag(scope)
+    private var windowSettings: some View {
+        settingsCard(
+            title: "Windows",
+            detail: "Choose which real open windows are included.",
+            icon: "macwindow.on.rectangle"
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Windows shown", selection: windowScopeBinding) {
+                    ForEach(WindowSwitcherWindowScope.allCases) { scope in
+                        Text(scope.displayName).tag(scope)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                Text(windowScopeHelp)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider().padding(.vertical, 2)
+
+            settingRow(title: "Preview fit", detail: previewStyleHelp) {
+                Picker("Preview fit", selection: previewStyleBinding) {
+                    ForEach(WindowSwitcherPreviewStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 210)
+            }
+        }
+    }
+
+    private var appearanceSettings: some View {
+        settingsCard(
+            title: "Appearance",
+            detail: "Style only the Window Switcher overlay.",
+            icon: "paintpalette.fill"
+        ) {
+            settingRow(title: "Theme", detail: "Follow the system or set a fixed contrast.") {
+                Picker("Theme", selection: switcherThemeBinding) {
+                    ForEach(OverlayTheme.allCases) { theme in
+                        Text(theme.displayName).tag(theme)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+            }
+
+            settingRow(title: "Surface", detail: "Use translucency or a solid panel.") {
+                Picker("Surface", selection: switcherSurfaceBinding) {
+                    ForEach(OverlaySurfaceStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+            }
+
+            settingRow(title: "Colors", detail: "Set the surface and selection color.") {
+                HStack(spacing: 8) {
+                    Picker("Background", selection: switcherBackgroundBinding) {
+                        ForEach(OverlayBackgroundColor.allCases) { color in
+                            Text(color.displayName).tag(color)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    Picker("Accent", selection: switcherAccentBinding) {
+                        ForEach(WindowSwitcherAccent.allCases) { accent in
+                            Text(accent.displayName).tag(accent)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
             }
-            .labelsHidden()
-            .pickerStyle(.segmented)
 
-            Divider()
-                .padding(.vertical, 2)
+            Divider().padding(.vertical, 2)
 
-            settingLabel("Preview fit", detail: previewStyleHelp)
-            Picker("Preview fit", selection: previewStyleBinding) {
-                ForEach(WindowSwitcherPreviewStyle.allCases) { style in
-                    Text(style.displayName).tag(style)
-                }
+            settingLabel("Background opacity", detail: "Window previews and the selection color remain clear.")
+            HStack(spacing: 8) {
+                Slider(value: switcherOpacityBinding, in: 0.45...1, step: 0.05)
+                Text("\(Int((switcherAppearance.backgroundOpacity * 100).rounded()))%")
+                    .font(.caption.monospacedDigit())
+                    .frame(width: 34, alignment: .trailing)
             }
-            .labelsHidden()
-            .pickerStyle(.segmented)
 
-            Divider()
-                .padding(.vertical, 2)
+            HStack {
+                Toggle("Subtle border", isOn: switcherBorderBinding)
+                    .toggleStyle(.checkbox)
+                Spacer()
+                Text("Corner radius")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Stepper(
+                    "\(Int(switcherAppearance.cornerRadius.rounded()))",
+                    value: switcherCornerRadiusBinding,
+                    in: 10...30,
+                    step: 1
+                )
+                .fixedSize()
+            }
+        }
+    }
 
+    private var detailSettings: some View {
+        settingsCard(
+            title: "Preview Details",
+            detail: "Keep only the information that helps you identify a window.",
+            icon: "switch.2"
+        ) {
             preferenceToggle(
                 "Window titles",
                 icon: "textformat",
@@ -134,83 +253,49 @@ struct WindowSwitcherSettingsView: View {
         }
     }
 
-    private var appearanceSettings: some View {
-        settingsCard(title: "Appearance", icon: "paintpalette") {
-            settingLabel("Theme", detail: "Applies only to this switcher.")
-            Picker("Theme", selection: switcherThemeBinding) {
-                ForEach(OverlayTheme.allCases) { theme in
-                    Text(theme.displayName).tag(theme)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-
-            Picker("Surface", selection: switcherSurfaceBinding) {
-                ForEach(OverlaySurfaceStyle.allCases) { style in
-                    Text(style.displayName).tag(style)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-
-            HStack(spacing: 6) {
-                Picker("Background", selection: switcherBackgroundBinding) {
-                    ForEach(OverlayBackgroundColor.allCases) { color in
-                        Text(color.displayName).tag(color)
-                    }
-                }
-                .pickerStyle(.menu)
-                Picker("Accent", selection: switcherAccentBinding) {
-                    ForEach(WindowSwitcherAccent.allCases) { accent in
-                        Text(accent.displayName).tag(accent)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
-            settingLabel("Opacity", detail: "Background only.")
-            HStack(spacing: 8) {
-                Slider(value: switcherOpacityBinding, in: 0.45...1, step: 0.05)
-                Text("\(Int((switcherAppearance.backgroundOpacity * 100).rounded()))%")
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 34, alignment: .trailing)
-            }
-
-            HStack {
-                Toggle("Border", isOn: switcherBorderBinding)
-                    .toggleStyle(.checkbox)
-                Spacer()
-                Text("Radius")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Stepper(
-                    "\(Int(switcherAppearance.cornerRadius.rounded()))",
-                    value: switcherCornerRadiusBinding,
-                    in: 10...30,
-                    step: 1
-                )
-                .fixedSize()
-            }
-        }
-    }
-
     private func settingsCard<Content: View>(
         title: String,
+        detail: String,
         icon: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(title, systemImage: icon)
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: icon)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 24, height: 24)
+                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             Divider()
             content()
         }
-        .padding(13)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.65), lineWidth: 1)
+        }
+    }
+
+    private func settingRow<Content: View>(
+        title: String,
+        detail: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .center, spacing: 16) {
+            settingLabel(title, detail: detail)
+            Spacer(minLength: 12)
+            content()
         }
     }
 
@@ -254,7 +339,7 @@ struct WindowSwitcherSettingsView: View {
     }
 
     private var navigationSpeedHelp: String {
-        "Multiplier for finger travel sensitivity and selection-animation response."
+        "Adjust finger-travel sensitivity and selection response."
     }
 
     private var windowScopeHelp: String {
@@ -380,30 +465,37 @@ private struct SwitcherAppearancePreview: View {
 
     private var cardSize: CGSize {
         switch preferences.cardSize {
-        case .compact: CGSize(width: 160, height: 106)
-        case .balanced: CGSize(width: 180, height: 116)
-        case .large: CGSize(width: 200, height: 126)
+        case .compact: CGSize(width: 170, height: 112)
+        case .balanced: CGSize(width: 194, height: 128)
+        case .large: CGSize(width: 218, height: 142)
         }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Label("Overlay Preview", systemImage: "sparkles.rectangle.stack")
-                    .font(.callout.weight(.semibold))
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles.rectangle.stack.fill")
+                    .foregroundStyle(appearance.swiftUIAccentColor)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Live Overlay Preview")
+                        .font(.callout.weight(.semibold))
+                    Text("Uses the exact appearance settings below")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                Text("Move in any direction  •  Lift to open")
+                Label("Move in any direction", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
 
             Divider()
 
             GeometryReader { proxy in
-                let horizontalPadding: CGFloat = 12
-                let spacing: CGFloat = 8
+                let horizontalPadding: CGFloat = 18
+                let spacing: CGFloat = 12
                 let availableCardWidth = max(
                     80,
                     (proxy.size.width - horizontalPadding * 2 - spacing * 2) / 3
@@ -415,9 +507,13 @@ private struct SwitcherAppearancePreview: View {
 
                 ZStack {
                     LinearGradient(
-                        colors: [Color.primary.opacity(0.035), Color.clear],
-                        startPoint: .top,
-                        endPoint: .bottom
+                        colors: [
+                            appearance.swiftUIAccentColor.opacity(0.08),
+                            Color.primary.opacity(0.025),
+                            Color.clear,
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
 
                     HStack(spacing: spacing) {
@@ -426,9 +522,10 @@ private struct SwitcherAppearancePreview: View {
                         previewCard(.editor, size: resolvedCardSize)
                     }
                     .padding(.horizontal, horizontalPadding)
+                    .padding(.vertical, 14)
                 }
             }
-            .frame(height: 142)
+            .frame(height: 180)
         }
         .background {
             let shape = RoundedRectangle(cornerRadius: appearance.cornerRadius, style: .continuous)
@@ -455,13 +552,13 @@ private struct SwitcherAppearancePreview: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: appearance.cornerRadius, style: .continuous))
-        .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+        .shadow(color: .black.opacity(0.12), radius: 14, y: 6)
         .preferredColorScheme(appearance.preferredColorScheme)
         .animation(.easeInOut(duration: 0.18), value: preferences)
     }
 
     private func previewCard(_ kind: MockWindowKind, size: CGSize, selected: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 9) {
             if preferences.showApplicationIcons || preferences.showWindowTitles {
                 HStack(spacing: 7) {
                     if preferences.showApplicationIcons {
@@ -484,7 +581,7 @@ private struct SwitcherAppearancePreview: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
-        .padding(9)
+        .padding(10)
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .background(
             appearance.swiftUIBackgroundColor.opacity(0.34),
@@ -492,9 +589,16 @@ private struct SwitcherAppearancePreview: View {
         )
         .overlay {
             RoundedRectangle(cornerRadius: min(16, appearance.cornerRadius * 0.75), style: .continuous)
-                .stroke(selected ? appearance.swiftUIAccentColor : .clear, lineWidth: 4)
+                .stroke(
+                    selected ? appearance.swiftUIAccentColor : Color.primary.opacity(0.06),
+                    lineWidth: selected ? 4 : 1
+                )
         }
-        .shadow(color: selected ? appearance.swiftUIAccentColor.opacity(0.22) : .clear, radius: 8)
+        .shadow(
+            color: selected ? appearance.swiftUIAccentColor.opacity(0.25) : .black.opacity(0.07),
+            radius: selected ? 10 : 4,
+            y: 2
+        )
     }
 
     @ViewBuilder

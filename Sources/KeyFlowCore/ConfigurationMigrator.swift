@@ -157,6 +157,17 @@ public enum ConfigurationMigrator {
             // installations adopt the KeyFlow touch mark by default.
             migrated.applicationPreferences.menuBarIconStyle = .touch
             migrated.schemaVersion = 19
+        case 19:
+            // Schema 20 narrows the visible menu-bar choices to the product's
+            // touch and pointer language. Replace obsolete utility symbols
+            // while preserving already relevant choices.
+            switch migrated.applicationPreferences.menuBarIconStyle {
+            case .command, .keyboard, .controls:
+                migrated.applicationPreferences.menuBarIconStyle = .touch
+            case .touch, .pointer, .pointUp, .cursorClick, .cursorRays:
+                break
+            }
+            migrated.schemaVersion = 20
         default:
             break
         }
