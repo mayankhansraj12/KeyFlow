@@ -1,3 +1,6 @@
+> Contributor pull requests must target `dev`. Pull requests to `main` are
+> reserved for maintainers promoting this repository's `dev` branch.
+
 ## Summary
 
 Describe the user-visible outcome and the reason for the change.
