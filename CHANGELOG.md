@@ -2,7 +2,7 @@
 
 All notable user-facing and production changes are recorded here.
 
-## 0.1.7 (build 8) — 2026-07-16
+## Unreleased — 0.1.7 (build 8) candidate
 
 ### Added
 
@@ -21,5 +21,8 @@ All notable user-facing and production changes are recorded here.
 
 ### Distribution status
 
+- Prepared KeyFlow for open-source publication under the MIT License.
 - The source and locally signed universal application are validated.
-- Public distribution still requires the Developer ID, notarization, clean-install, and physical multitouch gates documented in `docs/RELEASE_CHECKLIST.md`.
+- Official binaries still require Developer ID signing, notarization,
+  clean-install qualification, and the physical multitouch gates documented in
+  `docs/RELEASE_CHECKLIST.md`.

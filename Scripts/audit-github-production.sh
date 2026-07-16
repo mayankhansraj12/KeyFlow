@@ -28,17 +28,37 @@ BRANCH_PROTECTION="$(gh api "repos/$REPOSITORY/branches/$DEFAULT_BRANCH/protecti
     || fail "$DEFAULT_BRANCH branch protection is unavailable"
 jq -e '.required_status_checks.strict == true' <<<"$BRANCH_PROTECTION" >/dev/null \
     || fail "strict required status checks are disabled"
-jq -e '.required_pull_request_reviews.required_approving_review_count >= 1' <<<"$BRANCH_PROTECTION" >/dev/null \
-    || fail "at least one approving review is not required"
-jq -e '.required_pull_request_reviews.require_code_owner_reviews == true' <<<"$BRANCH_PROTECTION" >/dev/null \
-    || fail "CODEOWNER review is not required"
+jq -e '.required_status_checks.contexts | index("Build, test, and package") != null' \
+    <<<"$BRANCH_PROTECTION" >/dev/null || fail "required CI check is missing"
+jq -e '.required_pull_request_reviews != null' <<<"$BRANCH_PROTECTION" >/dev/null \
+    || fail "pull requests are not required"
 jq -e '.enforce_admins.enabled == true' <<<"$BRANCH_PROTECTION" >/dev/null \
     || fail "branch rules do not include administrators"
+jq -e '.required_linear_history.enabled == true' <<<"$BRANCH_PROTECTION" >/dev/null \
+    || fail "linear history is not required"
+jq -e '.required_conversation_resolution.enabled == true' <<<"$BRANCH_PROTECTION" >/dev/null \
+    || fail "resolved conversations are not required"
 jq -e '.allow_force_pushes.enabled == false and .allow_deletions.enabled == false' \
     <<<"$BRANCH_PROTECTION" >/dev/null || fail "force-push or branch deletion is allowed"
 
-gh api "repos/$REPOSITORY/environments/production" >/dev/null \
+PUSH_COLLABORATOR_COUNT="$(
+    gh api --paginate "repos/$REPOSITORY/collaborators?affiliation=all&per_page=100" \
+        | jq -s '[.[][] | select(.permissions.push == true or .permissions.admin == true)] | length'
+)"
+if (( PUSH_COLLABORATOR_COUNT >= 2 )); then
+    jq -e '.required_pull_request_reviews.required_approving_review_count >= 1' \
+        <<<"$BRANCH_PROTECTION" >/dev/null || fail "at least one approving review is not required"
+    jq -e '.required_pull_request_reviews.require_code_owner_reviews == true' \
+        <<<"$BRANCH_PROTECTION" >/dev/null || fail "CODEOWNER review is not required"
+else
+    print "Independent review gate deferred: repository has one push-capable maintainer"
+fi
+
+PRODUCTION_ENVIRONMENT="$(gh api "repos/$REPOSITORY/environments/production")" \
     || fail "production environment is not configured"
+jq -e '.deployment_branch_policy.protected_branches == true' \
+    <<<"$PRODUCTION_ENVIRONMENT" >/dev/null \
+    || fail "production deployments are not restricted to protected branches"
 CONFIGURED_SECRETS="$(gh secret list --env production --repo "$REPOSITORY" --json name --jq '.[].name')"
 for secret in "${REQUIRED_SECRETS[@]}"; do
     grep -qx "$secret" <<<"$CONFIGURED_SECRETS" || fail "missing production secret: $secret"

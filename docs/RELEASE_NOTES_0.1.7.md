@@ -1,4 +1,4 @@
-# KeyFlow 0.1.7 beta release notes
+# KeyFlow 0.1.7 beta candidate notes
 
 ## Highlights
 
@@ -12,7 +12,11 @@
 
 ## Installation and updates
 
-This is a manually updated direct-download beta for macOS 15 or later. Automatic updates are not enabled. Public distribution additionally requires Developer ID signing, notarization/stapling, published immutable checksums, and the remaining release gates.
+This is the candidate scope for an open-source, manually updated beta on macOS
+15 or later. Automatic updates are not enabled. Community builds can be
+produced from source. Maintainer-published binaries additionally require
+Developer ID signing, notarization/stapling, immutable checksums, and the
+remaining release gates.
 
 ## Known limitations
 
@@ -22,4 +26,6 @@ This is a manually updated direct-download beta for macOS 15 or later. Automatic
 - Intel execution, sleep/wake, fast-user-switching, clean-account TCC, and cross-version upgrade qualification remain release-owner test gates.
 - No automatic updater, Mac App Store build, scripts, import/export, mouse remapping, or app-specific action graphs are included.
 
-See `SUPPORT.md`, `PRIVACY.md`, `SECURITY.md`, and `PRODUCTION_AUDIT_REPORT.md` before distribution.
+See [Support](SUPPORT.md), [Privacy](PRIVACY.md),
+[Security](../SECURITY.md), and the
+[production audit report](PRODUCTION_AUDIT_REPORT.md) for more detail.

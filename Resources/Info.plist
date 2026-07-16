@@ -35,7 +35,7 @@
     <key>KeyFlowPrivacyPolicyURL</key>
     <string>https://github.com/mayankhansraj12/KeyFlow/blob/main/docs/PRIVACY.md</string>
     <key>KeyFlowSupportURL</key>
-    <string>https://github.com/mayankhansraj12/KeyFlow/issues</string>
+    <string>https://github.com/mayankhansraj12/KeyFlow/blob/main/docs/SUPPORT.md</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>

@@ -19,8 +19,8 @@ Current version: `0.1.7` (`8`)
 | Data | Schema-20 JSON, legacy migration, atomic writes, stale-revision protection, ten rolling backups, corrupt-primary recovery |
 | Permissions | Accessibility/Input Monitoring controls plus optional Screen Recording for window thumbnails |
 | Diagnostics | Bounded in-memory activity, unified logging, privacy-redacted export |
-| Packaging | Universal builds, stable local signing, Developer ID/notarization/stapling/DMG automation, privacy manifest, machine-readable manual-beta policy, and ZIP/mounted-DMG qualification |
-| Quality | Strict formatter, warnings-as-errors, bundle verification, checksum-pinned workflow/secret auditing, GitHub CI, and a protected release workflow |
+| Packaging | Universal builds, stable local signing, a polished drag-to-Applications local DMG, Developer ID/notarization/stapling automation, privacy manifest, machine-readable manual-beta policy, and ZIP/mounted-DMG qualification |
+| Quality | Strict formatter, warnings-as-errors, bundle verification, checksum-pinned workflow/secret auditing, GitHub CI, and a release workflow designed for a protected production environment |
 | Tests | 107 core, app-model, and SwiftUI render tests covering Codable, migration, automatic shortcut naming, menu-bar icon availability, production/minimum window layouts, recovery, trigger conflicts, 3/4/5-finger lifecycles, tap/click separation, window selection, persistence, platform-service orchestration, cache lifetime, event-driven screenshot waiting, compatibility policy, and hot-path budgets; AddressSanitizer and ThreadSanitizer pass the full suite |
 
 ## Known limitations

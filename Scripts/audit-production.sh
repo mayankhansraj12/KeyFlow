@@ -18,6 +18,14 @@ for required in \
     "$RELEASE_POLICY" \
     "$ROOT/Resources/KeyFlow.entitlements" \
     "$ROOT/Resources/ThirdPartyNotices.txt" \
+    "$ROOT/README.md" \
+    "$ROOT/CONTRIBUTING.md" \
+    "$ROOT/CODE_OF_CONDUCT.md" \
+    "$ROOT/SECURITY.md" \
+    "$ROOT/docs/README.md" \
+    "$ROOT/docs/GETTING_STARTED.md" \
+    "$ROOT/docs/FEATURES.md" \
+    "$ROOT/docs/BUILDING.md" \
     "$ROOT/docs/PRODUCTION_READINESS_PLAN.md" \
     "$ROOT/docs/PRODUCTION_AUDIT_REPORT.md" \
     "$ROOT/docs/GITHUB_PRODUCTION_CONTROLS.md" \
@@ -48,6 +56,8 @@ SUPPORT_URL="$(/usr/libexec/PlistBuddy -c 'Print :KeyFlowSupportURL' "$INFO_PLIS
 [[ -n "$SCREEN_CAPTURE_DESCRIPTION" ]] || fail "NSScreenCaptureUsageDescription is empty"
 [[ "$PRIVACY_POLICY_URL" == https://* ]] || fail "privacy policy URL must use HTTPS"
 [[ "$SUPPORT_URL" == https://* ]] || fail "support URL must use HTTPS"
+grep -qF "MIT License" "$ROOT/LICENSE" || fail "repository license is not MIT"
+grep -qF "open-source" "$ROOT/README.md" || fail "README does not identify KeyFlow as open source"
 
 TRACKING="$(/usr/libexec/PlistBuddy -c 'Print :NSPrivacyTracking' "$PRIVACY_MANIFEST")"
 [[ "$TRACKING" == "false" ]] || fail "privacy manifest unexpectedly enables tracking"
@@ -74,7 +84,8 @@ SCHEMA="$(sed -nE 's/.*currentSchemaVersion = ([0-9]+).*/\1/p' "$ROOT/Sources/Ke
 grep -qF "Schema-${SCHEMA} JSON" "$ROOT/docs/IMPLEMENTATION_STATUS.md" \
     || fail "implementation status does not document schema $SCHEMA"
 
-if git -C "$ROOT" ls-files | grep -Eq '(^|/)(\.DS_Store|\.env|\.local-signing)(/|$)|\.(cer|key|p8|p12)$'; then
+if git -C "$ROOT" ls-files | grep -Eq \
+    '(^|/)(\.DS_Store|\.env|\.local-signing|\.codex|\.claude|\.cursor)(/|$)|\.(cer|key|p8|p12|keychain-db)$'; then
     fail "sensitive or generated material is tracked"
 fi
 
