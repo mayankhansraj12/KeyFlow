@@ -37,11 +37,14 @@ Recommended community features:
 Configure these through an authenticated repository-owner session, then run `./Scripts/audit-github-production.sh`:
 
 1. Protect both long-lived branches, `main` and `dev`. Require pull requests
-   and a current `Build, test, and package` check, require resolved
-   conversations, include administrators, and forbid force-push/deletion on
-   both branches. Keep linear history required on `dev`. Permit merge commits
-   on `main` so each production promotion preserves the exact integrated
-   `dev` history.
+   and `Build, test, and package`, require resolved conversations, include
+   administrators, and forbid force-push/deletion on both branches. Require
+   contributor branches to be current with `dev` and keep linear history on
+   `dev`. Permit merge commits on `main` so each production promotion preserves
+   the exact integrated `dev` history. Do not require `dev` to contain the
+   previous release merge commit before another promotion: the source gate
+   excludes other branches, while pull-request CI evaluates the proposed merge
+   against the current `main` state.
    While the repository has only one push-capable maintainer, the approval
    count remains zero so changes are not made impossible to merge. As soon as
    a second maintainer is added, require at least one approving CODEOWNER

@@ -42,8 +42,13 @@ function audit_branch_protection() {
         || fail "$branch branch is unavailable"
     protection="$(gh api "repos/$REPOSITORY/branches/$branch/protection")" \
         || fail "$branch branch protection is unavailable"
-    jq -e '.required_status_checks.strict == true' <<<"$protection" >/dev/null \
-        || fail "$branch does not require branches to be current before merging"
+    if [[ "$branch" == "dev" ]]; then
+        jq -e '.required_status_checks.strict == true' <<<"$protection" >/dev/null \
+            || fail "dev does not require contributor branches to be current"
+    else
+        jq -e '.required_status_checks.strict == false' <<<"$protection" >/dev/null \
+            || fail "main must not require dev to absorb release merge commits"
+    fi
     for check in "${required_checks[@]}"; do
         jq -e --arg check "$check" \
             '.required_status_checks.contexts | index($check) != null' \

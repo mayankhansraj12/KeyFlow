@@ -99,10 +99,11 @@ notarization remain future distribution gates.
   protection, Dependabot security updates, and automatic merged-branch
   deletion.
 - [x] Document the required branch, environment, security, and release settings.
-- [x] Protect `main` and `dev` with required pull requests, current CI,
+- [x] Protect `main` and `dev` with required pull requests and CI,
   resolved-conversation, administrator, no-force-push, and no-deletion rules.
-  Require linear history on integration branch `dev`; preserve release
-  promotions with merge commits on `main`.
+  Require contributor branches to be current with linear-history integration
+  branch `dev`; preserve release promotions with merge commits on `main`
+  without forcing release-only merge metadata back into `dev`.
 - [x] Require the metadata-only `Validate promotion source` check on `main` so
   only this repository's `dev` branch can be promoted.
 - [x] Create the protected `production` environment and restrict it to
