@@ -16,8 +16,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mayankhansraj12/KeyFlow/releases/download/v0.1.7/KeyFlow-0.1.7.dmg">Download KeyFlow 0.1.7</a>
-  ·
+  <a href="https://github.com/mayankhansraj12/KeyFlow/releases/latest/download/KeyFlow-0.1.7.dmg">
+    <img alt="Download the latest KeyFlow release" src="https://img.shields.io/badge/Download-KeyFlow%200.1.7-0a84ff?style=for-the-badge&logo=apple&logoColor=white">
+  </a>
+</p>
+
+<p align="center">
   <a href="docs/GETTING_STARTED.md">Getting started</a>
   ·
   <a href="docs/README.md">Documentation</a>
@@ -56,7 +60,7 @@ See the complete [feature guide](docs/FEATURES.md) and
 
 ## Install
 
-Download [KeyFlow 0.1.7 for macOS](https://github.com/mayankhansraj12/KeyFlow/releases/download/v0.1.7/KeyFlow-0.1.7.dmg),
+Download [the latest KeyFlow release for macOS](https://github.com/mayankhansraj12/KeyFlow/releases/latest/download/KeyFlow-0.1.7.dmg),
 open the DMG, and drag KeyFlow into Applications.
 
 This free release is not Apple-notarized. macOS may require you to
